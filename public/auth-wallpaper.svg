@@ -1,0 +1,243 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1200 1400"
+  width="1200"
+  height="1400"
+  role="img"
+  aria-label="Fondo abstracto tecnológico con formas geométricas y degradado índigo"
+>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4b3bf0" />
+      <stop offset="0.52" stop-color="#2b1fb0" />
+      <stop offset="1" stop-color="#160c73" />
+    </linearGradient>
+
+    <radialGradient id="glowTop" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#9d92ff" stop-opacity="0.5" />
+      <stop offset="1" stop-color="#9d92ff" stop-opacity="0" />
+    </radialGradient>
+
+    <radialGradient id="glowBottom" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#6f5cff" stop-opacity="0.42" />
+      <stop offset="1" stop-color="#6f5cff" stop-opacity="0" />
+    </radialGradient>
+
+    <linearGradient id="beam" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16" />
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
+    </linearGradient>
+
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.42" />
+      <stop offset="0.6" stop-color="#c8c2ff" stop-opacity="0.12" />
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.05" />
+    </linearGradient>
+
+    <linearGradient id="trace" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#b8b0ff" stop-opacity="0.05" />
+      <stop offset="0.5" stop-color="#cfc9ff" stop-opacity="0.42" />
+      <stop offset="1" stop-color="#b8b0ff" stop-opacity="0.08" />
+    </linearGradient>
+
+    <pattern id="grid" width="64" height="64" patternUnits="userSpaceOnUse">
+      <path
+        d="M64 0H0V64"
+        fill="none"
+        stroke="#ffffff"
+        stroke-opacity="0.055"
+        stroke-width="1"
+      />
+    </pattern>
+
+    <filter id="softGlow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="22" />
+    </filter>
+  </defs>
+
+  <!-- Fondo y textura -->
+  <rect width="1200" height="1400" fill="url(#bg)" />
+  <rect width="1200" height="1400" fill="url(#grid)" />
+
+  <circle cx="170" cy="190" r="520" fill="url(#glowTop)" />
+  <circle cx="1060" cy="1230" r="620" fill="url(#glowBottom)" />
+
+  <!-- Haz diagonal -->
+  <path d="M-160 1030 L470 -120 L850 -120 L220 1030 Z" fill="url(#beam)" />
+
+  <!-- Anillos concéntricos -->
+  <g fill="none" stroke="url(#ring)">
+    <circle cx="600" cy="700" r="300" stroke-width="1.5" />
+    <circle cx="600" cy="700" r="408" stroke-width="1" stroke-dasharray="3 20" />
+    <circle cx="600" cy="700" r="520" stroke-width="1" stroke-opacity="0.55" />
+  </g>
+
+  <!-- Arco destacado -->
+  <path
+    d="M600 280 A420 420 0 0 1 1015 618"
+    fill="none"
+    stroke="#ffffff"
+    stroke-opacity="0.42"
+    stroke-width="2.5"
+    stroke-linecap="round"
+  />
+  <circle cx="1015" cy="618" r="6" fill="#ffffff" fill-opacity="0.8" />
+  <circle cx="1015" cy="618" r="16" fill="none" stroke="#ffffff" stroke-opacity="0.28" />
+
+  <!-- Hexágonos centrales -->
+  <g
+    transform="translate(600 700)"
+    fill="none"
+    stroke="#ffffff"
+    stroke-opacity="0.15"
+    stroke-width="1.5"
+  >
+    <polygon points="0,-168 145,-84 145,84 0,168 -145,84 -145,-84" />
+    <polygon
+      points="0,-108 93,-54 93,54 0,108 -93,54 -93,-54"
+      fill="#ffffff"
+      fill-opacity="0.035"
+      stroke-opacity="0.22"
+    />
+    <polygon points="0,-54 47,-27 47,27 0,54 -47,27 -47,-27" stroke-opacity="0.34" />
+  </g>
+
+  <circle cx="600" cy="700" r="90" fill="#ffffff" fill-opacity="0.06" filter="url(#softGlow)" />
+  <circle cx="600" cy="700" r="5" fill="#ffffff" fill-opacity="0.85" />
+
+  <!-- Trazas tipo circuito: abajo a la izquierda -->
+  <g fill="none" stroke="url(#trace)" stroke-width="2" stroke-linecap="round">
+    <path d="M-40 1105 H205 L285 1025 H520" />
+    <path d="M-40 1175 H150 L230 1095 H415 L490 1170 H660" />
+    <path d="M-40 1245 H110 L190 1165" />
+    <path d="M130 1400 V1290 L215 1205 V1090" />
+    <path d="M320 1400 V1320 L400 1240 H545" />
+  </g>
+
+  <g fill="#d8d3ff">
+    <circle cx="520" cy="1025" r="5" fill-opacity="0.85" />
+    <circle cx="660" cy="1170" r="5" fill-opacity="0.75" />
+    <circle cx="190" cy="1165" r="4" fill-opacity="0.7" />
+    <circle cx="215" cy="1090" r="4" fill-opacity="0.6" />
+    <circle cx="545" cy="1240" r="4" fill-opacity="0.65" />
+    <rect x="197" y="1097" width="16" height="16" rx="3" fill="none" stroke="#d8d3ff" stroke-opacity="0.5" />
+    <rect x="392" y="1232" width="16" height="16" rx="3" fill="none" stroke="#d8d3ff" stroke-opacity="0.45" />
+  </g>
+
+  <!-- Trazas tipo circuito: arriba a la derecha -->
+  <g fill="none" stroke="url(#trace)" stroke-width="2" stroke-linecap="round">
+    <path d="M1240 170 H1015 L935 250 H760" />
+    <path d="M1240 245 H1060 L980 325 H830 L760 395" />
+    <path d="M1240 320 H1105 L1030 395" />
+    <path d="M940 0 V105 L860 185" />
+  </g>
+
+  <g fill="#d8d3ff">
+    <circle cx="760" cy="250" r="5" fill-opacity="0.8" />
+    <circle cx="760" cy="395" r="4" fill-opacity="0.65" />
+    <circle cx="1030" cy="395" r="4" fill-opacity="0.6" />
+    <circle cx="860" cy="185" r="4" fill-opacity="0.6" />
+  </g>
+
+  <!-- Tarjetas geométricas flotantes -->
+  <g>
+    <rect
+      x="120"
+      y="380"
+      width="236"
+      height="150"
+      rx="26"
+      fill="#ffffff"
+      fill-opacity="0.045"
+      stroke="#ffffff"
+      stroke-opacity="0.16"
+      transform="rotate(-12 238 455)"
+    />
+    <rect
+      x="170"
+      y="430"
+      width="140"
+      height="9"
+      rx="4.5"
+      fill="#ffffff"
+      fill-opacity="0.24"
+      transform="rotate(-12 238 455)"
+    />
+    <rect
+      x="170"
+      y="460"
+      width="94"
+      height="9"
+      rx="4.5"
+      fill="#ffffff"
+      fill-opacity="0.14"
+      transform="rotate(-12 238 455)"
+    />
+
+    <rect
+      x="800"
+      y="1010"
+      width="270"
+      height="168"
+      rx="28"
+      fill="#ffffff"
+      fill-opacity="0.05"
+      stroke="#ffffff"
+      stroke-opacity="0.18"
+      transform="rotate(11 935 1094)"
+    />
+    <circle
+      cx="878"
+      cy="1070"
+      r="26"
+      fill="none"
+      stroke="#ffffff"
+      stroke-opacity="0.2"
+      transform="rotate(11 935 1094)"
+    />
+    <rect
+      x="920"
+      y="1056"
+      width="112"
+      height="9"
+      rx="4.5"
+      fill="#ffffff"
+      fill-opacity="0.24"
+      transform="rotate(11 935 1094)"
+    />
+    <rect
+      x="920"
+      y="1086"
+      width="76"
+      height="9"
+      rx="4.5"
+      fill="#ffffff"
+      fill-opacity="0.14"
+      transform="rotate(11 935 1094)"
+    />
+  </g>
+
+  <!-- Cuadrados y puntos sueltos -->
+  <g fill="none" stroke="#ffffff" stroke-opacity="0.2">
+    <rect x="930" y="520" width="58" height="58" rx="12" transform="rotate(18 959 549)" />
+    <rect x="230" y="930" width="42" height="42" rx="10" transform="rotate(-16 251 951)" />
+    <rect x="760" y="250" width="34" height="34" rx="8" transform="rotate(28 777 267)" />
+  </g>
+
+  <g fill="#ffffff">
+    <circle cx="330" cy="600" r="3.5" fill-opacity="0.55" />
+    <circle cx="880" cy="760" r="3" fill-opacity="0.45" />
+    <circle cx="720" cy="470" r="2.5" fill-opacity="0.4" />
+    <circle cx="420" cy="860" r="3" fill-opacity="0.5" />
+    <circle cx="1040" cy="880" r="2.5" fill-opacity="0.4" />
+    <circle cx="260" cy="1180" r="2.5" fill-opacity="0.4" />
+  </g>
+
+  <!-- Cruces decorativas -->
+  <g stroke="#ffffff" stroke-opacity="0.22" stroke-width="1.5" stroke-linecap="round">
+    <path d="M520 160 V190 M505 175 H535" />
+    <path d="M1080 700 V730 M1065 715 H1095" />
+    <path d="M150 800 V830 M135 815 H165" />
+    <path d="M660 1250 V1280 M645 1265 H675" />
+  </g>
+</svg>
