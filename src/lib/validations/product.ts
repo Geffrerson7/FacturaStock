@@ -15,6 +15,32 @@ const optionalDescription = z
   )
   .transform((value) => value ?? null);
 
+const emptyToNull = (value: unknown) =>
+  typeof value === "string" && value.trim() === "" ? null : value;
+
+const optionalImageUrl = z
+  .preprocess(
+    emptyToNull,
+    z
+      .url("Image URL must be a valid URL.")
+      .max(500, "Image URL must be at most 500 characters.")
+      .nullable()
+      .optional(),
+  )
+  .transform((value) => value ?? null);
+
+const optionalImagePublicId = z
+  .preprocess(
+    emptyToNull,
+    z
+      .string()
+      .trim()
+      .max(255, "Cloudinary public id must be at most 255 characters.")
+      .nullable()
+      .optional(),
+  )
+  .transform((value) => value ?? null);
+
 export const createProductSchema = z.object({
   name: z
     .string()
@@ -39,6 +65,8 @@ export const createProductSchema = z.object({
     .max(1000000, "Stock is too large."),
   categoryId: z.uuid("Category id must be a valid UUID."),
   isActive: z.boolean().default(true),
+  imageUrl: optionalImageUrl,
+  imagePublicId: optionalImagePublicId,
 });
 
 export const updateProductSchema = createProductSchema;

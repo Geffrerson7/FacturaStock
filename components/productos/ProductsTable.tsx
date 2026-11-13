@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  Avatar,
   Button,
   Chip,
   Pagination,
@@ -9,7 +10,7 @@ import {
   Table,
   toast,
 } from "@heroui/react";
-import { FiEdit2, FiFolder, FiRefreshCw, FiTrash2 } from "react-icons/fi";
+import { FiEdit2, FiFolder, FiImage, FiRefreshCw, FiTrash2 } from "react-icons/fi";
 import Link from "next/link";
 
 import CreateProductModal from "@/components/productos/CreateProductModal";
@@ -279,15 +280,29 @@ export default function ProductsTable() {
                   <Table.Row key={product.id} id={product.id}>
                     <Table.Cell>{product.sku}</Table.Cell>
                     <Table.Cell>
-                      <div className="flex flex-col">
-                        <span className="font-medium text-slate-900">
-                          {product.name}
-                        </span>
-                        {product.description ? (
-                          <span className="text-xs text-slate-500">
-                            {product.description}
+                      <div className="flex items-center gap-3">
+                        <Avatar size="md" color="accent">
+                          {product.imageUrl ? (
+                            <Avatar.Image
+                              src={product.imageUrl}
+                              alt={product.name}
+                            />
+                          ) : null}
+                          <Avatar.Fallback>
+                            <FiImage aria-hidden />
+                          </Avatar.Fallback>
+                        </Avatar>
+
+                        <div className="flex flex-col">
+                          <span className="font-medium text-slate-900">
+                            {product.name}
                           </span>
-                        ) : null}
+                          {product.description ? (
+                            <span className="text-xs text-slate-500">
+                              {product.description}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
                     </Table.Cell>
                     <Table.Cell>{product.category?.name ?? "—"}</Table.Cell>

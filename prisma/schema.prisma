@@ -45,11 +45,11 @@ model Customer {
 // ---------------------------------------------------------------------------
 
 model Category {
-  id          String    @id @default(uuid()) @db.Uuid
-  name        String    @unique @db.VarChar(80)
-  description String?   @db.VarChar(200)
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(80)
+  description String?  @db.VarChar(200)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   products Product[]
 
@@ -57,16 +57,18 @@ model Category {
 }
 
 model Product {
-  id          String     @id @default(uuid()) @db.Uuid
-  name        String     @db.VarChar(120)
-  sku         String     @unique @db.VarChar(50)
-  description String?    @db.VarChar(255)
-  price       Decimal    @db.Decimal(10, 2)
-  stock       Int        @default(0)
-  isActive    Boolean    @default(true) @map("is_active")
-  categoryId  String     @map("category_id") @db.Uuid
-  createdAt   DateTime   @default(now()) @map("created_at")
-  updatedAt   DateTime   @updatedAt @map("updated_at")
+  id            String   @id @default(uuid()) @db.Uuid
+  name          String   @db.VarChar(120)
+  sku           String   @unique @db.VarChar(50)
+  description   String?  @db.VarChar(255)
+  price         Decimal  @db.Decimal(10, 2)
+  stock         Int      @default(0)
+  isActive      Boolean  @default(true) @map("is_active")
+  imageUrl      String?  @map("image_url") @db.VarChar(500)
+  imagePublicId String?  @map("image_public_id") @db.VarChar(255)
+  categoryId    String   @map("category_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   category  Category   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   saleItems SaleItem[]

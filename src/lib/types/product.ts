@@ -9,6 +9,8 @@ export type Product = {
   price: string;
   stock: number;
   isActive: boolean;
+  imageUrl: string | null;
+  imagePublicId: string | null;
   categoryId: string;
   category: Category;
   createdAt: string;
