@@ -1,5 +1,5 @@
 {
-  "name": "my-inventory-app",
+  "name": "facturastock",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -7,6 +7,9 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:validate": "prisma validate",
@@ -39,7 +42,8 @@
     "prisma": "7.10.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.1.0"
   },
   "packageManager": "pnpm@12.11.2"
 }

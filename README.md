@@ -99,6 +99,16 @@ docker compose up -d
 
 O apunta `DATABASE_URL` a tu instancia propia.
 
+La base se llama `facturastock`. Si vienes de una versión anterior con la base
+`my_inventory`, puedes crear la nueva a partir de la anterior sin perder datos:
+
+```bash
+docker compose exec postgres createdb -U postgres -T my_inventory facturastock
+```
+
+Después actualiza `DATABASE_URL` en `.env` para que termine en
+`/facturastock?schema=public`.
+
 ### 4. Aplicar migraciones y datos de ejemplo
 
 ```bash
@@ -128,6 +138,9 @@ curl http://localhost:3000/api/health/db
 | `pnpm build` | Genera Prisma y crea el build de producción. |
 | `pnpm start` | Inicia el build de producción. |
 | `pnpm lint` | Ejecuta ESLint. |
+| `pnpm typecheck` | Verifica los tipos con `tsc --noEmit`. |
+| `pnpm test` | Ejecuta los tests una vez con Vitest. |
+| `pnpm test:watch` | Ejecuta los tests en modo vigilancia. |
 | `pnpm db:generate` | Regenera el cliente de Prisma. |
 | `pnpm db:validate` | Valida `prisma/schema.prisma`. |
 | `pnpm db:migrate` | Crea y aplica una migración en desarrollo. |
@@ -137,11 +150,10 @@ curl http://localhost:3000/api/health/db
 | `pnpm db:seed` | Ejecuta `prisma/seed.ts`. |
 | `pnpm db:studio` | Abre Prisma Studio. |
 
-Para verificar tipos sin generar build:
-
-```bash
-pnpm exec tsc --noEmit
-```
+Los tests cubren el cálculo de IGV por línea y los totales de los comprobantes
+en `tests/nubefact.test.ts`. El flujo de integración continua en
+`.github/workflows/ci.yml` ejecuta lint, tipos, tests y build en cada pull
+request.
 
 ## Rutas de la aplicación
 
