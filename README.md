@@ -226,6 +226,8 @@ components/
   productos/        # Tabla y formularios de productos
   register/         # Formulario de registro
   ventas/           # Tabla, formulario y anulación de ventas
+docs/
+  authentication.md # Análisis de Auth.js vs next-auth y guía de implementación
 prisma/
   migrations/       # Migraciones de la base de datos
   schema.prisma     # Modelos y enums
@@ -268,6 +270,14 @@ const products = await prisma.product.findMany({
 - `prisma.config.ts` es el archivo de configuración de la CLI y carga `.env` explícitamente con `import "dotenv/config"`.
 - Si usas un proveedor con pooler (Neon, Supabase), usa la URL directa para las migraciones (`pnpm db:migrate` / `pnpm db:deploy`).
 
+## Autenticación
+
+El login y el registro todavía son solo interfaz. La opción recomendada para
+implementarlos es **Auth.js v5** (el paquete `next-auth@beta`), no `next-auth`
+v4. El análisis completo, la comparativa de versiones y una guía de
+implementación adaptada a Prisma, Cache Components y `proxy.ts` están en
+[`docs/authentication.md`](docs/authentication.md).
+
 ## Limitaciones actuales
 
 - No hay autenticación real: login y registro son solo interfaz y las rutas del admin no están protegidas.
@@ -281,3 +291,4 @@ const products = await prisma.product.findMany({
 - [Documentación de Prisma ORM 7](https://www.prisma.io/docs/orm)
 - [Documentación de HeroUI](https://www.heroui.com/docs)
 - [Nubefact](https://www.nubefact.com/)
+- [Auth.js](https://authjs.dev)
