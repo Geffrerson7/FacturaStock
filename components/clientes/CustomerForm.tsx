@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ComponentProps } from "react";
+import { FiSearch } from "react-icons/fi";
 import {
   Button,
   FieldError,
@@ -39,17 +40,111 @@ type ApiErrorBody = {
 
 type ApiResponseBody = ApiErrorBody & { data?: Customer };
 
+type LookupResponseBody = ApiErrorBody & {
+  data?: {
+    documentType: CustomerDocumentType;
+    documentNumber: string;
+    firstName?: string;
+    lastName?: string;
+    businessName?: string;
+    address?: string | null;
+    status?: string | null;
+  };
+};
+
+const DOCUMENT_LENGTH: Record<CustomerDocumentType, number> = {
+  DNI: 8,
+  RUC: 11,
+};
+
 export default function CustomerForm({
   customer,
   onSuccess,
 }: CustomerFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLookingUp, setIsLookingUp] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   // Cambiar la key vuelve a montar el formulario y lo deja vacío.
   const [formKey, setFormKey] = useState(0);
   const [documentType, setDocumentType] = useState<CustomerDocumentType>(
     customer?.documentType ?? "DNI",
   );
+  const [dni, setDni] = useState(customer?.dni ?? "");
+  const [ruc, setRuc] = useState(customer?.ruc ?? "");
+  const [firstName, setFirstName] = useState(customer?.firstName ?? "");
+  const [lastName, setLastName] = useState(customer?.lastName ?? "");
+  const [businessName, setBusinessName] = useState(
+    customer?.businessName ?? "",
+  );
+  const [address, setAddress] = useState(customer?.address ?? "");
+
+  const documentNumber = documentType === "DNI" ? dni : ruc;
+
+  function resetFields() {
+    setDni("");
+    setRuc("");
+    setFirstName("");
+    setLastName("");
+    setBusinessName("");
+    setAddress("");
+    setDocumentType("DNI");
+  }
+
+  async function handleLookup() {
+    const numero = documentNumber.trim();
+    const expectedLength = DOCUMENT_LENGTH[documentType];
+
+    if (!new RegExp(`^\\d{${expectedLength}}$`).test(numero)) {
+      toast.danger("Documento inválido", {
+        description: `El ${documentType} debe tener exactamente ${expectedLength} dígitos.`,
+      });
+      return;
+    }
+
+    setIsLookingUp(true);
+
+    try {
+      const response = await fetch(
+        `/api/consulta/${documentType.toLowerCase()}?numero=${numero}`,
+        { cache: "no-store" },
+      );
+
+      const body = (await response.json().catch(() => ({}))) as LookupResponseBody;
+
+      if (!response.ok || !body.data) {
+        toast.danger("No se pudo consultar el documento", {
+          description:
+            body.error?.message ?? "Ocurrió un error inesperado. Inténtalo de nuevo.",
+        });
+        return;
+      }
+
+      if (body.data.documentType === "DNI") {
+        setFirstName(body.data.firstName ?? "");
+        setLastName(body.data.lastName ?? "");
+      } else {
+        setBusinessName(body.data.businessName ?? "");
+
+        // La dirección solo se rellena si el usuario aún no escribió una.
+        if (!address.trim() && body.data.address) {
+          setAddress(body.data.address);
+        }
+      }
+
+      toast.success("Datos encontrados", {
+        description:
+          body.data.documentType === "DNI"
+            ? "Se completaron el nombre y los apellidos."
+            : "Se completó la razón social.",
+      });
+    } catch {
+      toast.danger("No se pudo consultar el documento", {
+        description: "No hay conexión con el servidor. Inténtalo de nuevo.",
+      });
+    } finally {
+      setIsLookingUp(false);
+    }
+  }
 
   async function handleSubmit(event: FormSubmitEvent) {
     event.preventDefault();
@@ -98,7 +193,7 @@ export default function CustomerForm({
             description: "El cliente se guardó correctamente.",
           });
           setFormKey((key) => key + 1);
-          setDocumentType("DNI");
+          resetFields();
         }
 
         if (body.data) onSuccess?.(body.data);
@@ -176,20 +271,39 @@ export default function CustomerForm({
 
       {documentType === "DNI" ? (
         <>
-          <TextField name="dni" defaultValue={customer?.dni ?? ""} isRequired>
-            <Label>DNI</Label>
-            <Input
-              placeholder="12345678"
-              maxLength={8}
-              inputMode="numeric"
-            />
-            <FieldError />
-          </TextField>
+          <div className="flex items-end gap-3">
+            <TextField
+              name="dni"
+              value={dni}
+              onChange={setDni}
+              isRequired
+              className="flex-1"
+            >
+              <Label>DNI</Label>
+              <Input
+                placeholder="12345678"
+                maxLength={8}
+                inputMode="numeric"
+              />
+              <FieldError />
+            </TextField>
+
+            <Button
+              type="button"
+              variant="secondary"
+              onPress={handleLookup}
+              isPending={isLookingUp}
+            >
+              <FiSearch />
+              {isLookingUp ? "Consultando..." : "Consultar DNI"}
+            </Button>
+          </div>
 
           <div className="flex gap-4">
             <TextField
               name="firstName"
-              defaultValue={customer?.firstName ?? ""}
+              value={firstName}
+              onChange={setFirstName}
               isRequired
               className="flex-1"
             >
@@ -199,7 +313,8 @@ export default function CustomerForm({
             </TextField>
             <TextField
               name="lastName"
-              defaultValue={customer?.lastName ?? ""}
+              value={lastName}
+              onChange={setLastName}
               isRequired
               className="flex-1"
             >
@@ -211,19 +326,38 @@ export default function CustomerForm({
         </>
       ) : (
         <>
-          <TextField name="ruc" defaultValue={customer?.ruc ?? ""} isRequired>
-            <Label>RUC</Label>
-            <Input
-              placeholder="20123456789"
-              maxLength={11}
-              inputMode="numeric"
-            />
-            <FieldError />
-          </TextField>
+          <div className="flex items-end gap-3">
+            <TextField
+              name="ruc"
+              value={ruc}
+              onChange={setRuc}
+              isRequired
+              className="flex-1"
+            >
+              <Label>RUC</Label>
+              <Input
+                placeholder="20123456789"
+                maxLength={11}
+                inputMode="numeric"
+              />
+              <FieldError />
+            </TextField>
+
+            <Button
+              type="button"
+              variant="secondary"
+              onPress={handleLookup}
+              isPending={isLookingUp}
+            >
+              <FiSearch />
+              {isLookingUp ? "Consultando..." : "Consultar RUC"}
+            </Button>
+          </div>
 
           <TextField
             name="businessName"
-            defaultValue={customer?.businessName ?? ""}
+            value={businessName}
+            onChange={setBusinessName}
             isRequired
           >
             <Label>Razón social</Label>
@@ -235,7 +369,8 @@ export default function CustomerForm({
 
       <TextField
         name="address"
-        defaultValue={customer?.address}
+        value={address}
+        onChange={setAddress}
         isRequired
       >
         <Label>Dirección</Label>
@@ -244,11 +379,7 @@ export default function CustomerForm({
       </TextField>
 
       <div className="flex gap-4">
-        <TextField
-          name="phone"
-          defaultValue={customer?.phone ?? ""}
-          className="flex-1"
-        >
+        <TextField name="phone" defaultValue={customer?.phone ?? ""} className="flex-1">
           <Label>Teléfono (opcional)</Label>
           <Input placeholder="+51 999 999 999" maxLength={20} type="tel" />
           <FieldError />

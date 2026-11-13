@@ -7,10 +7,12 @@ Aplicación de inventario y punto de venta construida con **Next.js 16** y **Pos
 - **Clientes**
   - Registro de personas naturales con DNI y empresas con RUC.
   - CRUD con validaciones, búsqueda por documento y paginación.
+  - Consulta de DNI (RENIEC) y RUC (SUNAT) para autocompletar los datos del cliente.
   - Cliente walk-in (`DNI 00000000`) para ventas sin cliente identificado.
 
 - **Productos**
   - CRUD con SKU único, precio, stock, categoría y estado activo/inactivo.
+  - Imagen del producto subida a Cloudinary (archivo, arrastrar y soltar o URL), guardada en la base y mostrada con un avatar en el listado.
   - Paginación y control de stock.
 
 - **Categorías**
@@ -84,6 +86,10 @@ Completa los valores en `.env`:
 | `DATABASE_URL` | Sí | Cadena de conexión de PostgreSQL. |
 | `NUBEFACT_API_URL` | Para facturar | URL de la API de Nubefact (incluye el identificador de la cuenta). |
 | `NUBEFACT_API_TOKEN` | Para facturar | Token de autenticación de Nubefact. |
+| `DECOLECTA_API_TOKEN` | Para consultar documentos | Token de Decolecta para consultar DNI y RUC. |
+| `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | Para subir imágenes | Cloud name de Cloudinary (público). |
+| `NEXT_PUBLIC_CLOUDINARY_API_KEY` | Para subir imágenes | API key de Cloudinary (público). |
+| `CLOUDINARY_API_SECRET` | Para subir imágenes | API secret de Cloudinary. Solo se usa en el servidor para firmar las subidas. |
 
 Sin las variables de Nubefact, las ventas se registran igual y el comprobante queda en estado `PENDIENTE`.
 
@@ -162,6 +168,9 @@ pnpm exec tsc --noEmit
 | `GET` | `/api/health/db` | Verifica la conexión con PostgreSQL. |
 | `GET` / `POST` | `/api/clientes` | Lista paginada y crea clientes. |
 | `PUT` / `DELETE` | `/api/clientes/[id]` | Actualiza y elimina un cliente. |
+| `GET` | `/api/consulta/dni` | Consulta los datos de un DNI en RENIEC (Decolecta). |
+| `GET` | `/api/consulta/ruc` | Consulta los datos de un RUC en SUNAT (Decolecta). |
+| `POST` | `/api/cloudinary/signature` | Firma los parámetros de subida a Cloudinary. |
 | `GET` / `POST` | `/api/productos` | Lista paginada y crea productos. |
 | `PUT` / `DELETE` | `/api/productos/[id]` | Actualiza y elimina un producto. |
 | `GET` / `POST` | `/api/categorias` | Lista paginada y crea categorías. |
@@ -193,6 +202,14 @@ Los correlativos se guardan en `invoice_counters` y se reservan en la misma tran
 
 La documentación de referencia de la API está en `NUBEFACT DOC API JSON V1.md`.
 
+## Imágenes de productos
+
+Las imágenes se eligen desde el formulario de productos de tres formas: subiendo un archivo (`JPG`, `PNG` o `WebP` de hasta 5 MB), arrastrándolo sobre el área de imagen o pegando una URL pública. En los tres casos la imagen se almacena en la carpeta `facturastock/products` de Cloudinary.
+
+La subida es **firmada**: el navegador pide la firma a `POST /api/cloudinary/signature` y envía el archivo (o la URL remota) a la API de subida de Cloudinary con esa firma. El `CLOUDINARY_API_SECRET` nunca sale del servidor. La URL segura y el `public_id` se guardan en `products.image_url` e `products.image_public_id`, y el listado los muestra con un `Avatar` de HeroUI.
+
+Al quitar la imagen de un producto solo se borra la referencia en la base de datos; el archivo permanece en Cloudinary.
+
 ## Estructura del proyecto
 
 ```text
@@ -221,6 +238,7 @@ src/
   lib/validations/  # Esquemas Zod
   lib/prisma.ts     # Instancia compartida de Prisma
   lib/nubefact.ts   # Integración con Nubefact
+  lib/decolecta.ts  # Consulta de DNI y RUC con Decolecta
 ```
 
 ## Prisma
