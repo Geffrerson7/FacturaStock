@@ -12,7 +12,7 @@ import {
 
 const CATEGORY_CONFLICT: ConflictOptions = {
   code: "CATEGORY_ALREADY_EXISTS",
-  entity: "category",
+  entity: "una categoría",
   fields: ["name"],
 };
 
@@ -20,23 +20,24 @@ function parseCategoryId(id: string) {
   const result = categoryIdSchema.safeParse(id);
 
   if (!result.success) {
-    throw new ApiError(400, "VALIDATION_ERROR", "Category id is invalid.", {
-      details: result.error.issues.map((issue) => ({
-        path: "id",
-        message: issue.message,
-      })),
-    });
+    throw new ApiError(
+      400,
+      "VALIDATION_ERROR",
+      "El identificador de la categoría no es válido.",
+      {
+        details: result.error.issues.map((issue) => ({
+          path: "id",
+          message: issue.message,
+        })),
+      },
+    );
   }
 
   return result.data;
 }
 
 function categoryNotFound() {
-  return new ApiError(
-    404,
-    "CATEGORY_NOT_FOUND",
-    "The category does not exist.",
-  );
+  return new ApiError(404, "CATEGORY_NOT_FOUND", "La categoría no existe.");
 }
 
 export async function PUT(
@@ -100,7 +101,7 @@ export async function DELETE(
         throw new ApiError(
           409,
           "CATEGORY_IN_USE",
-          "The category has products assigned and cannot be deleted.",
+          "La categoría tiene productos asignados y no se puede eliminar.",
         );
       }
 

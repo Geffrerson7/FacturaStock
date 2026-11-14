@@ -1,5 +1,15 @@
 import type { Customer } from "./types/customer";
 
+/**
+ * DNI del cliente genérico de las ventas sin registro ("walk-in"). Su fila
+ * existe en la base, pero no se lista ni se puede editar o borrar.
+ */
+export const WALK_IN_DNI = "00000000";
+
+export function isWalkInCustomer(customer: { dni: string | null }): boolean {
+  return customer.dni === WALK_IN_DNI;
+}
+
 type CustomerIdentity = Pick<
   Customer,
   | "documentType"

@@ -2,6 +2,33 @@ import { z } from "zod";
 
 import { ApiError } from "./errors";
 
+// Los mensajes que Zod genera por su cuenta (tipos, enums...) salen en español.
+z.config(z.locales.es());
+
+/** Respuesta de un listado paginado. */
+export function paginatedResponse<T>(
+  data: T[],
+  total: number,
+  { page, pageSize }: { page: number; pageSize: number },
+): Response {
+  const totalPages = Math.ceil(total / pageSize);
+
+  return Response.json(
+    {
+      data,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    },
+    { status: 200 },
+  );
+}
+
 export async function parseJsonBody<TSchema extends z.ZodType>(
   request: Request,
   schema: TSchema,
@@ -14,7 +41,7 @@ export async function parseJsonBody<TSchema extends z.ZodType>(
     throw new ApiError(
       400,
       "VALIDATION_ERROR",
-      "Request body must be valid JSON.",
+      "El cuerpo de la petición debe ser un JSON válido.",
     );
   }
 
@@ -29,7 +56,7 @@ export async function parseJsonBody<TSchema extends z.ZodType>(
     throw new ApiError(
       400,
       "VALIDATION_ERROR",
-      "Request body is invalid.",
+      "Los datos enviados no son válidos.",
       { details },
     );
   }
@@ -53,7 +80,7 @@ export function parseSearchParams<TSchema extends z.ZodType>(
     throw new ApiError(
       400,
       "VALIDATION_ERROR",
-      "Query parameters are invalid.",
+      "Los parámetros de la consulta no son válidos.",
       { details },
     );
   }

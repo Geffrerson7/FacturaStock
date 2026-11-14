@@ -15,9 +15,7 @@ import CancelSaleDialog from "@/components/ventas/CancelSaleDialog";
 import CreateSaleModal from "@/components/ventas/CreateSaleModal";
 import { formatCurrency, formatDate } from "@/src/lib/format";
 import { getCustomerName } from "@/src/lib/customer";
-import type { Customer, CustomersPageResponse } from "@/src/lib/types/customer";
 import type { PaginationMeta } from "@/src/lib/types/pagination";
-import type { Product, ProductsPageResponse } from "@/src/lib/types/product";
 import type {
   InvoiceStatus,
   Sale,
@@ -96,8 +94,6 @@ function getPageItems(current: number, total: number): (number | "ellipsis")[] {
 
 export default function SalesTable() {
   const [sales, setSales] = useState<Sale[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [pagination, setPagination] =
     useState<PaginationMeta>(EMPTY_PAGINATION);
   const [page, setPage] = useState(1);
@@ -108,6 +104,9 @@ export default function SalesTable() {
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [emittingSaleId, setEmittingSaleId] = useState<string | null>(null);
+  const [refreshingSaleId, setRefreshingSaleId] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -117,34 +116,13 @@ export default function SalesTable() {
       setErrorMessage(null);
 
       try {
-        const [salesResponse, productsResponse, customersResponse] =
-          await Promise.all([
-            fetch(`/api/ventas?page=${page}&pageSize=${PAGE_SIZE}`, {
-              cache: "no-store",
-              signal: controller.signal,
-            }),
-            fetch("/api/productos?page=1&pageSize=100", {
-              cache: "no-store",
-              signal: controller.signal,
-            }),
-            fetch("/api/clientes?page=1&pageSize=100", {
-              cache: "no-store",
-              signal: controller.signal,
-            }),
-          ]);
+        const salesResponse = await fetch(
+          `/api/ventas?page=${page}&pageSize=${PAGE_SIZE}`,
+          { cache: "no-store", signal: controller.signal },
+        );
 
         const salesPayload = (await salesResponse.json().catch(() => null)) as
           | (SalesPageResponse & ErrorPayload)
-          | null;
-        const productsPayload = (await productsResponse
-          .json()
-          .catch(() => null)) as
-          | (ProductsPageResponse & ErrorPayload)
-          | null;
-        const customersPayload = (await customersResponse
-          .json()
-          .catch(() => null)) as
-          | (CustomersPageResponse & ErrorPayload)
           | null;
 
         if (!salesResponse.ok) {
@@ -159,8 +137,6 @@ export default function SalesTable() {
 
         setSales(salesPayload.data);
         setPagination(salesPayload.pagination);
-        setProducts(productsPayload?.data ?? []);
-        setCustomers(customersPayload?.data ?? []);
         setStatus("success");
       } catch (error) {
         if (controller.signal.aborted) return;
@@ -275,6 +251,51 @@ export default function SalesTable() {
     }
   }, []);
 
+  const handleRefreshCancellation = useCallback(async (sale: Sale) => {
+    setRefreshingSaleId(sale.id);
+
+    try {
+      const response = await fetch(`/api/ventas/${sale.id}/anulacion`, {
+        method: "POST",
+      });
+      const payload = (await response
+        .json()
+        .catch(() => null)) as InvoiceResponsePayload | null;
+
+      if (!response.ok) {
+        throw new Error(
+          payload?.error?.message ??
+            "No se pudo consultar el estado de la anulación.",
+        );
+      }
+
+      const invoice = payload?.data?.invoice;
+
+      if (invoice?.status === "ANULADO") {
+        toast.success("Anulación aceptada", {
+          description: `SUNAT aceptó la anulación de ${invoice.series}-${invoice.number}.`,
+        });
+      } else {
+        toast.warning("La anulación sigue pendiente", {
+          description:
+            invoice?.sunatDescription ??
+            "SUNAT todavía no procesa la anulación. Vuelve a consultar más tarde.",
+        });
+      }
+
+      setReloadToken((token) => token + 1);
+    } catch (error) {
+      toast.danger("No se pudo actualizar el estado", {
+        description:
+          error instanceof Error
+            ? error.message
+            : "Ocurrió un error inesperado.",
+      });
+    } finally {
+      setRefreshingSaleId(null);
+    }
+  }, []);
+
   const total = pagination.total;
   const totalPages = pagination.totalPages;
   const start = total === 0 ? 0 : (page - 1) * pagination.pageSize + 1;
@@ -293,11 +314,7 @@ export default function SalesTable() {
             <FiRefreshCw aria-hidden />
             Actualizar
           </Button>
-          <CreateSaleModal
-            products={products}
-            customers={customers}
-            onCreated={handleCreated}
-          />
+          <CreateSaleModal onCreated={handleCreated} />
         </div>
       </div>
 
@@ -359,7 +376,7 @@ export default function SalesTable() {
                     <Table.Cell>
                       {sale.customer
                         ? getCustomerName(sale.customer)
-                        : "Walk-in"}
+                        : "Clientes varios"}
                     </Table.Cell>
                     <Table.Cell>
                       <div className="flex flex-col gap-0.5">
@@ -471,6 +488,20 @@ export default function SalesTable() {
                               <FiXCircle aria-hidden />
                             </Button>
                           </>
+                        ) : sale.invoice?.status === "ANULACION_PENDIENTE" ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            isDisabled={refreshingSaleId === sale.id}
+                            onPress={() => void handleRefreshCancellation(sale)}
+                          >
+                            {refreshingSaleId === sale.id ? (
+                              <Spinner size="sm" color="current" />
+                            ) : (
+                              <FiRefreshCw aria-hidden />
+                            )}
+                            Actualizar estado
+                          </Button>
                         ) : (
                           <span className="text-xs text-slate-400">—</span>
                         )}

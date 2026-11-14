@@ -1,11 +1,19 @@
 import { Prisma } from "@/src/generated/prisma/client";
 import { ApiError, handleApiError } from "@/src/lib/api/errors";
 import { emitSaleInvoice } from "@/src/lib/api/invoice";
-import { parseJsonBody, parseSearchParams } from "@/src/lib/api/request";
+import {
+  paginatedResponse,
+  parseJsonBody,
+  parseSearchParams,
+} from "@/src/lib/api/request";
 import { requireSession } from "@/src/lib/api/session";
-import { SALE_INCLUDE } from "@/src/lib/api/sale";
+import {
+  buildSaleOrderBy,
+  buildSaleWhere,
+  SALE_INCLUDE,
+} from "@/src/lib/api/sale";
 import { prisma } from "@/src/lib/prisma";
-import { resolveInvoiceIdentity } from "@/src/lib/nubefact";
+import { buildNubefactItems, resolveInvoiceIdentity } from "@/src/lib/nubefact";
 import {
   createSaleSchema,
   listSalesQuerySchema,
@@ -15,34 +23,22 @@ export async function GET(request: Request) {
   try {
     await requireSession(request);
 
-    const { page, pageSize } = parseSearchParams(request, listSalesQuerySchema);
+    const query = parseSearchParams(request, listSalesQuerySchema);
+    const { page, pageSize } = query;
+    const where = buildSaleWhere(query);
 
     const [sales, total] = await prisma.$transaction([
       prisma.sale.findMany({
+        where,
         include: SALE_INCLUDE,
-        orderBy: [{ createdAt: "desc" }, { number: "desc" }],
+        orderBy: buildSaleOrderBy(query),
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
-      prisma.sale.count(),
+      prisma.sale.count({ where }),
     ]);
 
-    const totalPages = Math.ceil(total / pageSize);
-
-    return Response.json(
-      {
-        data: sales,
-        pagination: {
-          page,
-          pageSize,
-          total,
-          totalPages,
-          hasNextPage: page < totalPages,
-          hasPreviousPage: page > 1,
-        },
-      },
-      { status: 200 },
-    );
+    return paginatedResponse(sales, total, { page, pageSize });
   } catch (error) {
     return handleApiError(error);
   }
@@ -64,7 +60,7 @@ export async function POST(request: Request) {
       throw new ApiError(
         400,
         "VALIDATION_ERROR",
-        "The selected customer does not exist.",
+        "El cliente seleccionado no existe.",
         { field: "customerId" },
       );
     }
@@ -95,7 +91,7 @@ export async function POST(request: Request) {
           throw new ApiError(
             400,
             "VALIDATION_ERROR",
-            `The product with id ${productId} does not exist.`,
+            "Uno de los productos seleccionados ya no existe.",
             { field: "items" },
           );
         }
@@ -104,7 +100,7 @@ export async function POST(request: Request) {
           throw new ApiError(
             409,
             "PRODUCT_INACTIVE",
-            `The product "${product.name}" is inactive and cannot be sold.`,
+            `El producto "${product.name}" está inactivo y no se puede vender.`,
             { field: "items" },
           );
         }
@@ -115,7 +111,7 @@ export async function POST(request: Request) {
           throw new ApiError(
             409,
             "INSUFFICIENT_STOCK",
-            `Not enough stock for "${product.name}". Available: ${product.stock}, requested: ${quantity}.`,
+            `No hay stock suficiente de "${product.name}". Disponible: ${product.stock}, solicitado: ${quantity}.`,
             { field: "items" },
           );
         }
@@ -133,7 +129,7 @@ export async function POST(request: Request) {
           throw new ApiError(
             409,
             "INSUFFICIENT_STOCK",
-            `Not enough stock for "${product.name}".`,
+            `No hay stock suficiente de "${product.name}". Otra venta acaba de consumirlo.`,
             { field: "items" },
           );
         }
@@ -159,6 +155,16 @@ export async function POST(request: Request) {
         new Prisma.Decimal(0),
       );
 
+      // Base imponible e IGV con el mismo redondeo por línea que se envía a
+      // Nubefact, para que la venta guardada cuadre con el comprobante.
+      const amounts = buildNubefactItems(
+        items.map((item) => ({
+          description: item.productName,
+          quantity: item.quantity,
+          unitPrice: Number(item.unitPrice),
+        })),
+      );
+
       // El comprobante se reserva en la misma transacción que la venta.
       const identity = resolveInvoiceIdentity(customer);
       const counter = await tx.invoiceCounter.upsert({
@@ -175,6 +181,8 @@ export async function POST(request: Request) {
       return tx.sale.create({
         data: {
           customerId: data.customerId,
+          taxableAmount: amounts.totalGravada,
+          igvAmount: amounts.totalIgv,
           total,
           items: { create: items },
           invoice: {

@@ -1,15 +1,19 @@
 import { z } from "zod";
 
-export const categoryIdSchema = z.uuid("Category id must be a valid UUID.");
+import { paginationQuery, searchQuery, sortQuery } from "./list";
+
+export const categoryIdSchema = z.uuid(
+  "El identificador de la categoría no es válido.",
+);
 
 const optionalDescription = z
   .preprocess(
     (value) =>
       typeof value === "string" && value.trim() === "" ? null : value,
     z
-      .string()
+      .string("La descripción debe ser un texto.")
       .trim()
-      .max(200, "Description must be at most 200 characters.")
+      .max(200, "La descripción no puede superar los 200 caracteres.")
       .nullable()
       .optional(),
   )
@@ -17,18 +21,25 @@ const optionalDescription = z
 
 export const createCategorySchema = z.object({
   name: z
-    .string()
+    .string("El nombre de la categoría es obligatorio.")
     .trim()
-    .min(1, "Category name is required.")
-    .max(80, "Category name must be at most 80 characters."),
+    .min(1, "El nombre de la categoría es obligatorio.")
+    .max(80, "El nombre no puede superar los 80 caracteres."),
   description: optionalDescription,
 });
 
 export const updateCategorySchema = createCategorySchema;
 
+export const CATEGORY_SORT_FIELDS = [
+  "name",
+  "createdAt",
+  "productCount",
+] as const;
+
 export const listCategoriesQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(10),
+  ...paginationQuery,
+  q: searchQuery,
+  ...sortQuery(CATEGORY_SORT_FIELDS, { sort: "name", order: "asc" }),
 });
 
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;

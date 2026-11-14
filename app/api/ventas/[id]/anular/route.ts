@@ -1,13 +1,16 @@
 import type { Prisma } from "@/src/generated/prisma/client";
 
-import { ApiError, handleApiError } from "@/src/lib/api/errors";
+import { handleApiError } from "@/src/lib/api/errors";
+import { cancellationInvoiceData } from "@/src/lib/api/invoice";
 import { requireSession } from "@/src/lib/api/session";
-import { parseSaleId, SALE_INCLUDE } from "@/src/lib/api/sale";
-import { prisma } from "@/src/lib/prisma";
 import {
-  mapNubefactInvoice,
-  sendNubefactCancellation,
-} from "@/src/lib/nubefact";
+  parseSaleId,
+  SALE_INCLUDE,
+  saleAlreadyCancelled,
+  saleNotFound,
+} from "@/src/lib/api/sale";
+import { prisma } from "@/src/lib/prisma";
+import { sendNubefactCancellation } from "@/src/lib/nubefact";
 
 export async function POST(
   request: Request,
@@ -25,15 +28,13 @@ export async function POST(
     });
 
     if (!existing) {
-      throw new ApiError(404, "SALE_NOT_FOUND", "The sale does not exist.");
+      throw saleNotFound();
     }
 
+    // Respuesta rápida para el caso habitual. La comprobación que de verdad
+    // protege el stock es la de la transacción, más abajo.
     if (existing.status === "ANULADA") {
-      throw new ApiError(
-        409,
-        "SALE_ALREADY_CANCELLED",
-        "The sale has already been cancelled.",
-      );
+      throw saleAlreadyCancelled();
     }
 
     let cancelledInvoiceData: Prisma.InvoiceUpdateInput | null = null;
@@ -47,37 +48,31 @@ export async function POST(
         numero: existing.invoice.number,
         motivo: "ANULACION DE VENTA",
       });
-      const mapped = mapNubefactInvoice(response);
 
-      cancelledInvoiceData = {
-        status:
-          response.aceptada_por_sunat === true
-            ? "ANULADO"
-            : "ANULACION_PENDIENTE",
-        sunatAccepted:
-          typeof response.aceptada_por_sunat === "boolean"
-            ? response.aceptada_por_sunat
-            : null,
-        sunatDescription: mapped.sunatDescription,
-        sunatNote: mapped.sunatNote,
-        sunatResponseCode: mapped.sunatResponseCode,
-        pdfUrl: mapped.pdfUrl,
-        xmlUrl: mapped.xmlUrl,
-        cdrUrl: mapped.cdrUrl,
-        errorMessage: null,
-        response: mapped.response as Prisma.InputJsonValue,
-      };
+      cancelledInvoiceData = cancellationInvoiceData(response);
     } else if (existing.invoice) {
       // Un comprobante pendiente nunca llegó a SUNAT: solo se marca anulado.
       cancelledInvoiceData = { status: "ANULADO", errorMessage: null };
     }
 
     const sale = await prisma.$transaction(async (tx) => {
+      // El cambio de estado es condicional: de dos anulaciones simultáneas,
+      // solo una encuentra la venta COMPLETADA. La otra no afecta ninguna
+      // fila y se detiene aquí, antes de reponer el stock por segunda vez.
+      const claimed = await tx.sale.updateMany({
+        where: { id: saleId, status: "COMPLETADA" },
+        data: { status: "ANULADA" },
+      });
+
+      if (claimed.count === 0) {
+        throw saleAlreadyCancelled();
+      }
+
       // Devuelve el stock solo de los productos que aún existen.
       for (const item of existing.items) {
         if (!item.productId) continue;
 
-        await tx.product.update({
+        await tx.product.updateMany({
           where: { id: item.productId },
           data: { stock: { increment: item.quantity } },
         });
@@ -90,9 +85,8 @@ export async function POST(
         });
       }
 
-      return tx.sale.update({
+      return tx.sale.findUniqueOrThrow({
         where: { id: saleId },
-        data: { status: "ANULADA" },
         include: SALE_INCLUDE,
       });
     });

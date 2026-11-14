@@ -1,7 +1,12 @@
 import { ApiError, handleApiError } from "@/src/lib/api/errors";
 import { requireSession } from "@/src/lib/api/session";
 import { emitSaleInvoice } from "@/src/lib/api/invoice";
-import { parseSaleId, SALE_INCLUDE } from "@/src/lib/api/sale";
+import {
+  parseSaleId,
+  SALE_INCLUDE,
+  saleAlreadyCancelled,
+  saleNotFound,
+} from "@/src/lib/api/sale";
 import { prisma } from "@/src/lib/prisma";
 
 export async function POST(
@@ -20,22 +25,18 @@ export async function POST(
     });
 
     if (!sale) {
-      throw new ApiError(404, "SALE_NOT_FOUND", "The sale does not exist.");
+      throw saleNotFound();
     }
 
     if (sale.status === "ANULADA") {
-      throw new ApiError(
-        409,
-        "SALE_ALREADY_CANCELLED",
-        "The sale has already been cancelled.",
-      );
+      throw saleAlreadyCancelled();
     }
 
     if (!sale.invoice) {
       throw new ApiError(
         404,
         "INVOICE_NOT_FOUND",
-        "The sale does not have an invoice.",
+        "La venta no tiene un comprobante asociado.",
       );
     }
 
@@ -43,7 +44,7 @@ export async function POST(
       throw new ApiError(
         409,
         "INVOICE_ALREADY_EMITTED",
-        "The invoice has already been emitted.",
+        "El comprobante ya fue emitido.",
       );
     }
 
@@ -51,7 +52,7 @@ export async function POST(
       throw new ApiError(
         409,
         "INVOICE_NOT_PENDING",
-        "The invoice cannot be emitted in its current state.",
+        "El comprobante no se puede emitir en su estado actual.",
       );
     }
 

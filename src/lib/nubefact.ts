@@ -1,13 +1,96 @@
 import { ApiError } from "@/src/lib/api/errors";
-import { getCustomerName } from "@/src/lib/customer";
+import { getCustomerName, WALK_IN_DNI } from "@/src/lib/customer";
 import type { CustomerDocumentType } from "@/src/lib/types/customer";
 
 export const IGV_RATE = 0.18;
 
-export const INVOICE_SERIES = {
-  FACTURA: { series: "FFF1", invoiceType: 1 as const, initialNumber: 8 },
-  BOLETA: { series: "BBB1", invoiceType: 2 as const, initialNumber: 6 },
+/**
+ * Valores que se usan si el entorno no define las variables `NUBEFACT_*`.
+ * Son los de la cuenta de demostración con la que se desarrolló el proyecto.
+ */
+const DEFAULT_SERIES = {
+  FACTURA: { series: "FFF1", initialNumber: 8 },
+  BOLETA: { series: "BBB1", initialNumber: 6 },
 } as const;
+
+type InvoiceSeriesConfig<TType extends 1 | 2> = {
+  series: string;
+  invoiceType: TType;
+  initialNumber: number;
+};
+
+function seriesMisconfigured(variable: string, expected: string): ApiError {
+  return new ApiError(
+    500,
+    "INVOICE_SERIES_MISCONFIGURED",
+    `La variable de entorno ${variable} no es válida: ${expected}.`,
+  );
+}
+
+function readSeries(variable: string, prefix: "F" | "B", fallback: string) {
+  const value = process.env[variable]?.trim().toUpperCase() || fallback;
+
+  // SUNAT: 4 caracteres; "F" para facturas y "B" para boletas.
+  if (!new RegExp(`^${prefix}[A-Z0-9]{3}$`).test(value)) {
+    throw seriesMisconfigured(
+      variable,
+      `debe tener 4 caracteres y empezar con "${prefix}"`,
+    );
+  }
+
+  return value;
+}
+
+function readInitialNumber(variable: string, fallback: number) {
+  const raw = process.env[variable]?.trim();
+
+  if (!raw) return fallback;
+
+  if (!/^\d{1,8}$/.test(raw) || Number(raw) < 1) {
+    throw seriesMisconfigured(variable, "debe ser un entero entre 1 y 99999999");
+  }
+
+  return Number(raw);
+}
+
+/**
+ * Series y correlativos iniciales de la cuenta de Nubefact, leídos del
+ * entorno en cada llamada.
+ *
+ * El correlativo inicial solo se usa la primera vez que se emite con una
+ * serie; a partir de ahí manda la fila de `invoice_counters`.
+ */
+export function getInvoiceSeries(): {
+  FACTURA: InvoiceSeriesConfig<1>;
+  BOLETA: InvoiceSeriesConfig<2>;
+} {
+  return {
+    FACTURA: {
+      series: readSeries(
+        "NUBEFACT_FACTURA_SERIES",
+        "F",
+        DEFAULT_SERIES.FACTURA.series,
+      ),
+      invoiceType: 1,
+      initialNumber: readInitialNumber(
+        "NUBEFACT_FACTURA_INITIAL_NUMBER",
+        DEFAULT_SERIES.FACTURA.initialNumber,
+      ),
+    },
+    BOLETA: {
+      series: readSeries(
+        "NUBEFACT_BOLETA_SERIES",
+        "B",
+        DEFAULT_SERIES.BOLETA.series,
+      ),
+      invoiceType: 2,
+      initialNumber: readInitialNumber(
+        "NUBEFACT_BOLETA_INITIAL_NUMBER",
+        DEFAULT_SERIES.BOLETA.initialNumber,
+      ),
+    },
+  };
+}
 
 export type InvoiceIdentity = {
   documentType: "FACTURA" | "BOLETA";
@@ -138,6 +221,8 @@ function toText(value: unknown): string | null {
 export function resolveInvoiceIdentity(
   customer: InvoiceCustomer | null,
 ): InvoiceIdentity {
+  const INVOICE_SERIES = getInvoiceSeries();
+
   if (customer?.documentType === "RUC") {
     if (!customer.ruc) {
       throw new ApiError(
@@ -165,7 +250,7 @@ export function resolveInvoiceIdentity(
   if (
     customer?.documentType === "DNI" &&
     customer.dni &&
-    customer.dni !== "00000000"
+    customer.dni !== WALK_IN_DNI
   ) {
     return {
       ...INVOICE_SERIES.BOLETA,
@@ -374,6 +459,24 @@ export async function sendNubefactCancellation(
   payload: NubefactCancellationPayload,
 ): Promise<NubefactCancellationResponse> {
   return (await postToNubefact(payload)) as NubefactCancellationResponse;
+}
+
+/** Consulta en qué quedó una anulación (comunicación de baja) ya enviada. */
+export async function consultNubefactCancellation({
+  invoiceType,
+  series,
+  number,
+}: {
+  invoiceType: number;
+  series: string;
+  number: number;
+}): Promise<NubefactCancellationResponse> {
+  return (await postToNubefact({
+    operacion: "consultar_anulacion",
+    tipo_de_comprobante: invoiceType,
+    serie: series,
+    numero: number,
+  })) as NubefactCancellationResponse;
 }
 
 export function mapNubefactInvoice(response: NubefactInvoiceResponse) {

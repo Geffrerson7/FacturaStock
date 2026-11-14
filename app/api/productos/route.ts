@@ -1,6 +1,14 @@
 import type { ConflictOptions } from "@/src/lib/api/errors";
 import { ApiError, handleApiError } from "@/src/lib/api/errors";
-import { parseJsonBody, parseSearchParams } from "@/src/lib/api/request";
+import {
+  buildProductOrderBy,
+  buildProductWhere,
+} from "@/src/lib/api/product";
+import {
+  paginatedResponse,
+  parseJsonBody,
+  parseSearchParams,
+} from "@/src/lib/api/request";
 import { requireSession } from "@/src/lib/api/session";
 import { prisma } from "@/src/lib/prisma";
 import {
@@ -10,7 +18,7 @@ import {
 
 const PRODUCT_CONFLICT: ConflictOptions = {
   code: "PRODUCT_ALREADY_EXISTS",
-  entity: "product",
+  entity: "un producto",
   fields: ["sku"],
 };
 
@@ -18,7 +26,7 @@ function categoryNotFound() {
   return new ApiError(
     400,
     "VALIDATION_ERROR",
-    "The selected category does not exist.",
+    "La categoría seleccionada no existe.",
     { field: "categoryId" },
   );
 }
@@ -27,37 +35,22 @@ export async function GET(request: Request) {
   try {
     await requireSession(request);
 
-    const { page, pageSize } = parseSearchParams(
-      request,
-      listProductsQuerySchema,
-    );
+    const query = parseSearchParams(request, listProductsQuerySchema);
+    const { page, pageSize } = query;
+    const where = buildProductWhere(query);
 
     const [products, total] = await prisma.$transaction([
       prisma.product.findMany({
+        where,
         include: { category: true },
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        orderBy: buildProductOrderBy(query),
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
-      prisma.product.count(),
+      prisma.product.count({ where }),
     ]);
 
-    const totalPages = Math.ceil(total / pageSize);
-
-    return Response.json(
-      {
-        data: products,
-        pagination: {
-          page,
-          pageSize,
-          total,
-          totalPages,
-          hasNextPage: page < totalPages,
-          hasPreviousPage: page > 1,
-        },
-      },
-      { status: 200 },
-    );
+    return paginatedResponse(products, total, { page, pageSize });
   } catch (error) {
     return handleApiError(error, PRODUCT_CONFLICT);
   }

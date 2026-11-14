@@ -7,14 +7,23 @@ type ErrorExtra = {
 
 export type ConflictOptions = {
   code: string;
+  /** Nombre de la entidad con su artículo, p. ej. "un cliente". */
   entity: string;
   fields: string[];
 };
 
 const DEFAULT_CONFLICT: ConflictOptions = {
   code: "CUSTOMER_ALREADY_EXISTS",
-  entity: "customer",
+  entity: "un cliente",
   fields: ["dni", "ruc", "email"],
+};
+
+const FIELD_LABELS: Record<string, string> = {
+  dni: "DNI",
+  ruc: "RUC",
+  email: "correo electrónico",
+  sku: "SKU",
+  name: "nombre",
 };
 
 export class ApiError extends Error {
@@ -90,9 +99,18 @@ export function handleApiError(
       409,
       conflict.code,
       field
-        ? `A ${conflict.entity} with that ${field} already exists.`
-        : `A ${conflict.entity} with those unique values already exists.`,
+        ? `Ya existe ${conflict.entity} con ese ${FIELD_LABELS[field] ?? field}.`
+        : `Ya existe ${conflict.entity} con esos datos.`,
       { field },
+    );
+  }
+
+  // Se compara por nombre para no importar el módulo de Nubefact desde aquí.
+  if (error instanceof Error && error.name === "NubefactError") {
+    return errorResponse(
+      502,
+      "NUBEFACT_ERROR",
+      `Nubefact no pudo completar la operación: ${error.message}`,
     );
   }
 
@@ -101,6 +119,6 @@ export function handleApiError(
   return errorResponse(
     500,
     "INTERNAL_ERROR",
-    "An unexpected error occurred.",
+    "Ocurrió un error inesperado. Inténtalo de nuevo.",
   );
 }

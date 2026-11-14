@@ -87,13 +87,17 @@ enum SaleStatus {
 }
 
 model Sale {
-  id         String     @id @default(uuid()) @db.Uuid
-  number     Int        @unique @default(autoincrement())
-  customerId String?    @map("customer_id") @db.Uuid
-  total      Decimal    @db.Decimal(10, 2)
-  status     SaleStatus @default(COMPLETADA)
-  createdAt  DateTime   @default(now()) @map("created_at")
-  updatedAt  DateTime   @updatedAt @map("updated_at")
+  id            String     @id @default(uuid()) @db.Uuid
+  number        Int        @unique @default(autoincrement())
+  customerId    String?    @map("customer_id") @db.Uuid
+  // Base imponible e IGV, calculados igual que en el comprobante.
+  // taxableAmount + igvAmount = total.
+  taxableAmount Decimal    @default(0) @map("taxable_amount") @db.Decimal(10, 2)
+  igvAmount     Decimal    @default(0) @map("igv_amount") @db.Decimal(10, 2)
+  total         Decimal    @db.Decimal(10, 2)
+  status        SaleStatus @default(COMPLETADA)
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
 
   customer Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
   items    SaleItem[]
@@ -133,7 +137,8 @@ enum InvoiceStatus {
   ANULACION_PENDIENTE
 }
 
-// Correlativo por serie. FFF1 empieza en 8 y BBB1 en 6 (ver migración).
+// Correlativo por serie. Las series y su número inicial salen de las
+// variables NUBEFACT_*_SERIES y NUBEFACT_*_INITIAL_NUMBER.
 model InvoiceCounter {
   series     String   @id @db.VarChar(4)
   nextNumber Int      @map("next_number")

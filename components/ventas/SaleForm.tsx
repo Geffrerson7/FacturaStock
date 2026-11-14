@@ -1,32 +1,22 @@
 "use client";
 
 import { useState, type ComponentProps } from "react";
-import {
-  Button,
-  Form,
-  Label,
-  ListBox,
-  NumberField,
-  Select,
-  toast,
-} from "@heroui/react";
-import { FiPlus, FiTrash2 } from "react-icons/fi";
+import { Button, Form, Label, NumberField, toast } from "@heroui/react";
+import { FiTrash2, FiX } from "react-icons/fi";
 
+import SearchPicker from "@/components/ventas/SearchPicker";
 import { formatCurrency } from "@/src/lib/format";
-import { getCustomerDocument, getCustomerName } from "@/src/lib/customer";
+import { getCustomerDocumentLabel, getCustomerName } from "@/src/lib/customer";
 import type { Customer } from "@/src/lib/types/customer";
 import type { Product } from "@/src/lib/types/product";
 import type { Sale } from "@/src/lib/types/sale";
 
 type SaleFormProps = {
-  products: Product[];
-  customers: Customer[];
   onSuccess?: (sale: Sale) => void;
 };
 
 type SaleLine = {
-  key: number;
-  productId: string;
+  product: Product;
   quantity: number;
 };
 
@@ -45,61 +35,63 @@ type ApiErrorBody = {
 
 type ApiResponseBody = ApiErrorBody & { data?: Sale };
 
-const WALK_IN = "walk-in";
+// Los productos y los clientes se buscan en el servidor mientras se escribe,
+// así que el formulario funciona igual con 10 registros que con 10,000.
+const PRODUCT_SEARCH = "/api/productos?isActive=true&sort=name&order=asc";
+const CUSTOMER_SEARCH = "/api/clientes?sort=name&order=asc";
 
-function createLine(key: number): SaleLine {
-  return { key, productId: "", quantity: 1 };
-}
-
-export default function SaleForm({
-  products,
-  customers,
-  onSuccess,
-}: SaleFormProps) {
-  const availableProducts = products.filter((product) => product.isActive);
+export default function SaleForm({ onSuccess }: SaleFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [customerId, setCustomerId] = useState(WALK_IN);
-  const [lines, setLines] = useState<SaleLine[]>([createLine(1)]);
-  const [nextKey, setNextKey] = useState(2);
+  // Sin cliente, la venta sale como boleta a "clientes varios".
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [lines, setLines] = useState<SaleLine[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  function updateLine(key: number, patch: Partial<SaleLine>) {
+  function addProduct(product: Product) {
+    setErrorMessage(null);
+    setLines((current) => {
+      const existing = current.find((line) => line.product.id === product.id);
+
+      if (!existing) return [...current, { product, quantity: 1 }];
+
+      // Elegir de nuevo un producto ya agregado suma una unidad.
+      return current.map((line) =>
+        line.product.id === product.id
+          ? {
+              product,
+              quantity: Math.min(line.quantity + 1, Math.max(1, product.stock)),
+            }
+          : line,
+      );
+    });
+  }
+
+  function updateQuantity(productId: string, quantity: number) {
     setLines((current) =>
-      current.map((line) => (line.key === key ? { ...line, ...patch } : line)),
+      current.map((line) =>
+        line.product.id === productId ? { ...line, quantity } : line,
+      ),
     );
   }
 
-  function addLine() {
-    setLines((current) => [...current, createLine(nextKey)]);
-    setNextKey((key) => key + 1);
-  }
-
-  function removeLine(key: number) {
+  function removeLine(productId: string) {
     setLines((current) =>
-      current.length === 1
-        ? current
-        : current.filter((line) => line.key !== key),
+      current.filter((line) => line.product.id !== productId),
     );
   }
 
-  const productById = new Map(
-    availableProducts.map((product) => [product.id, product]),
+  const total = lines.reduce(
+    (sum, line) => sum + Number(line.product.price) * line.quantity,
+    0,
   );
-
-  const total = lines.reduce((sum, line) => {
-    const product = productById.get(line.productId);
-    if (!product) return sum;
-
-    return sum + Number(product.price) * line.quantity;
-  }, 0);
 
   async function handleSubmit(event: FormSubmitEvent) {
     event.preventDefault();
 
     const items = lines
-      .filter((line) => line.productId && line.quantity >= 1)
+      .filter((line) => line.quantity >= 1)
       .map((line) => ({
-        productId: line.productId,
+        productId: line.product.id,
         quantity: line.quantity,
       }));
 
@@ -115,10 +107,7 @@ export default function SaleForm({
       const response = await fetch("/api/ventas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerId: customerId === WALK_IN ? null : customerId,
-          items,
-        }),
+        body: JSON.stringify({ customerId: customer?.id ?? null, items }),
       });
 
       const body = (await response.json().catch(() => ({}))) as ApiResponseBody;
@@ -138,9 +127,8 @@ export default function SaleForm({
           });
         }
 
-        setCustomerId(WALK_IN);
-        setLines([createLine(nextKey)]);
-        setNextKey((key) => key + 1);
+        setCustomer(null);
+        setLines([]);
         onSuccess?.(body.data);
         return;
       }
@@ -161,118 +149,121 @@ export default function SaleForm({
     }
   }
 
-  if (availableProducts.length === 0) {
-    return (
-      <p className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
-        No hay productos activos disponibles para vender. Activa o registra un
-        producto primero.
-      </p>
-    );
-  }
-
   return (
     <Form
       className="flex w-full flex-col gap-5"
       onSubmit={handleSubmit}
       validationBehavior="aria"
     >
-      <Select
-        value={customerId}
-        onChange={(key) => setCustomerId(String(key))}
-      >
-        <Label>Cliente</Label>
-        <Select.Trigger>
-          <Select.Value />
-          <Select.Indicator />
-        </Select.Trigger>
-        <Select.Popover>
-          <ListBox>
-            <ListBox.Item id={WALK_IN} textValue="Cliente walk-in">
-              Cliente walk-in (sin registro)
-              <ListBox.ItemIndicator />
-            </ListBox.Item>
-            {customers.map((customer) => (
-              <ListBox.Item
-                key={customer.id}
-                id={customer.id}
-                textValue={`${getCustomerName(customer)} · ${getCustomerDocument(customer)}`}
+      <div className="flex flex-col gap-2">
+        {customer ? (
+          <>
+            <p className="text-sm font-medium text-slate-700">Cliente</p>
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-slate-900">
+                  {getCustomerName(customer)}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {getCustomerDocumentLabel(customer)} ·{" "}
+                  {customer.documentType === "RUC" ? "Factura" : "Boleta"}
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onPress={() => setCustomer(null)}
               >
-                {getCustomerName(customer)} · {getCustomerDocument(customer)}
-                <ListBox.ItemIndicator />
-              </ListBox.Item>
-            ))}
-          </ListBox>
-        </Select.Popover>
-      </Select>
+                <FiX aria-hidden />
+                Quitar
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <SearchPicker<Customer>
+              label="Cliente"
+              placeholder="Busca por nombre, razón social, DNI o RUC"
+              endpoint={CUSTOMER_SEARCH}
+              emptyMessage="No se encontraron clientes."
+              getKey={(item) => item.id}
+              renderItem={(item) => (
+                <>
+                  <span className="font-medium text-slate-900">
+                    {getCustomerName(item)}
+                  </span>
+                  <span className="text-slate-500">
+                    {" "}
+                    · {getCustomerDocumentLabel(item)}
+                  </span>
+                </>
+              )}
+              onSelect={setCustomer}
+            />
+            <p className="text-xs text-slate-500">
+              Sin cliente seleccionado, la venta se registra sin cliente y se
+              emite una boleta a «Clientes varios».
+            </p>
+          </>
+        )}
+      </div>
 
       <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium text-slate-700">Productos</p>
-          <Button type="button" size="sm" variant="outline" onPress={addLine}>
-            <FiPlus aria-hidden />
-            Agregar línea
-          </Button>
-        </div>
+        <SearchPicker<Product>
+          label="Agregar producto"
+          placeholder="Busca por nombre o SKU"
+          endpoint={PRODUCT_SEARCH}
+          emptyMessage="No se encontraron productos activos."
+          getKey={(item) => item.id}
+          isItemDisabled={(item) => item.stock === 0}
+          renderItem={(item) => (
+            <>
+              <span className="font-medium text-slate-900">{item.name}</span>
+              <span className="text-slate-500">
+                {" "}
+                · {item.sku} · {formatCurrency(item.price)} ·{" "}
+                {item.stock === 0 ? "Sin stock" : `Stock: ${item.stock}`}
+              </span>
+            </>
+          )}
+          onSelect={addProduct}
+        />
 
-        {lines.map((line) => {
-          const selected = productById.get(line.productId);
-          const maxStock = selected?.stock ?? 1;
-
-          return (
+        {lines.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500">
+            Todavía no agregaste productos a la venta.
+          </p>
+        ) : (
+          lines.map((line) => (
             <div
-              key={line.key}
+              key={line.product.id}
               className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 p-3 sm:grid-cols-[1fr_auto_auto]"
             >
-              <div className="flex flex-col gap-1">
-                <Select
-                  value={line.productId || null}
-                  onChange={(key) =>
-                    updateLine(line.key, {
-                      productId: String(key),
-                      quantity: 1,
-                    })
-                  }
-                  placeholder="Selecciona un producto"
-                >
-                  <Label className="text-xs">Producto</Label>
-                  <Select.Trigger>
-                    <Select.Value />
-                    <Select.Indicator />
-                  </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox>
-                      {availableProducts.map((product) => (
-                        <ListBox.Item
-                          key={product.id}
-                          id={product.id}
-                          textValue={`${product.name} (${product.sku})`}
-                          isDisabled={product.stock === 0}
-                        >
-                          {product.name} · {formatCurrency(product.price)} · Stock:{" "}
-                          {product.stock}
-                          <ListBox.ItemIndicator />
-                        </ListBox.Item>
-                      ))}
-                    </ListBox>
-                  </Select.Popover>
-                </Select>
-                {selected ? (
-                  <p className="text-xs text-slate-500">
-                    Precio unitario: {formatCurrency(selected.price)} · Stock
-                    disponible: {selected.stock}
-                  </p>
-                ) : null}
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-slate-900">
+                  {line.product.name}
+                </p>
+                <p className="text-xs text-slate-500">
+                  Precio unitario: {formatCurrency(line.product.price)} · Stock
+                  disponible: {line.product.stock}
+                </p>
+                <p className="text-xs text-slate-700">
+                  Subtotal:{" "}
+                  {formatCurrency(Number(line.product.price) * line.quantity)}
+                </p>
               </div>
 
               <NumberField
                 value={line.quantity}
                 onChange={(value) =>
-                  updateLine(line.key, {
-                    quantity: Number.isFinite(value) ? value : 1,
-                  })
+                  updateQuantity(
+                    line.product.id,
+                    Number.isFinite(value) ? value : 1,
+                  )
                 }
                 minValue={1}
-                maxValue={Math.max(1, maxStock)}
+                maxValue={Math.max(1, line.product.stock)}
                 step={1}
                 className="sm:w-32"
               >
@@ -289,16 +280,15 @@ export default function SaleForm({
                   type="button"
                   isIconOnly
                   variant="ghost"
-                  aria-label="Quitar línea"
-                  isDisabled={lines.length === 1}
-                  onPress={() => removeLine(line.key)}
+                  aria-label={`Quitar ${line.product.name}`}
+                  onPress={() => removeLine(line.product.id)}
                 >
                   <FiTrash2 aria-hidden />
                 </Button>
               </div>
             </div>
-          );
-        })}
+          ))
+        )}
       </div>
 
       <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
