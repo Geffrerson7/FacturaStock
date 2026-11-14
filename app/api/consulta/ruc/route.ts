@@ -2,7 +2,9 @@ import { z } from "zod";
 
 import { handleApiError } from "@/src/lib/api/errors";
 import { parseSearchParams } from "@/src/lib/api/request";
+import { requireSession } from "@/src/lib/api/session";
 import { lookupRuc } from "@/src/lib/decolecta";
+import { enforceDocumentLookupLimit } from "@/src/lib/rate-limit";
 
 const rucQuerySchema = z.object({
   numero: z
@@ -18,6 +20,11 @@ const rucQuerySchema = z.object({
  */
 export async function GET(request: Request) {
   try {
+    // Cada consulta gasta cuota de Decolecta: requiere una cuenta con permisos
+    // de escritura y tiene límite de peticiones por usuario.
+    const user = await requireSession(request, { allowDemo: false });
+    enforceDocumentLookupLimit(user.id);
+
     const { numero } = parseSearchParams(request, rucQuerySchema);
     const data = await lookupRuc(numero);
 

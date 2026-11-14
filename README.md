@@ -35,12 +35,15 @@ Aplicación de inventario y punto de venta construida con **Next.js 16** y **Pos
   - Anulación del comprobante en Nubefact al anular la venta.
   - Se guardan estado SUNAT, enlaces PDF/XML/CDR, hash, QR y respuesta de Nubefact.
 
+- **Autenticación**
+  - Inicio y cierre de sesión con correo y contraseña (Better Auth, sesiones en la base).
+  - Roles `ADMIN` y `DEMO`: el usuario de demostración solo puede leer (peticiones `GET`).
+  - Panel `/admin` y API protegidos; el registro está cerrado por defecto.
+
 - **Interfaz**
   - Pantallas de login y registro con validación en cliente.
   - Panel de administración con sidebar y opción activa resaltada.
   - Imagen de fondo SVG propia en login y registro.
-
-> **Nota:** el login y el registro son solo interfaz. Todavía no existe autenticación real ni protección de las rutas `/admin`.
 
 ## Stack
 
@@ -90,6 +93,11 @@ Completa los valores en `.env`:
 | `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | Para subir imágenes | Cloud name de Cloudinary (público). |
 | `NEXT_PUBLIC_CLOUDINARY_API_KEY` | Para subir imágenes | API key de Cloudinary (público). |
 | `CLOUDINARY_API_SECRET` | Para subir imágenes | API secret de Cloudinary. Solo se usa en el servidor para firmar las subidas. |
+| `BETTER_AUTH_SECRET` | Sí | Secreto que firma las cookies de sesión. Genera uno con `openssl rand -base64 32`. |
+| `BETTER_AUTH_URL` | Sí | URL pública de la aplicación (`http://localhost:3000` en desarrollo). |
+| `AUTH_ALLOW_SIGNUP` | No | `true` abre el registro en `/register`. Por defecto está cerrado. |
+| `DEMO_USER_EMAIL`, `DEMO_USER_PASSWORD` | No | Credenciales del usuario de demostración (solo lectura). Activan el botón "Entrar como demo" y solo se leen en el servidor. |
+| `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | No | Si se definen, `pnpm db:seed` crea un administrador con esas credenciales. |
 
 Sin las variables de Nubefact, las ventas se registran igual y el comprobante queda en estado `PENDIENTE`.
 
@@ -119,8 +127,13 @@ Después actualiza `DATABASE_URL` en `.env` para que termine en
 
 ```bash
 pnpm db:deploy   # aplica las migraciones existentes
-pnpm db:seed     # categorías, productos y cliente walk-in de ejemplo
+pnpm db:seed     # usuarios, categorías, productos y cliente walk-in de ejemplo
 ```
+
+El seed crea el usuario de demostración (solo lectura) si defines
+`DEMO_USER_EMAIL` y `DEMO_USER_PASSWORD`, y un administrador con permisos
+completos si defines `SEED_ADMIN_EMAIL` y `SEED_ADMIN_PASSWORD`. Si cambias
+alguna de esas contraseñas, vuelve a ejecutar el seed.
 
 ### 5. Iniciar el servidor
 
@@ -129,6 +142,8 @@ pnpm dev
 ```
 
 Abre [http://localhost:3000](http://localhost:3000).
+
+Inicia sesión con el administrador del seed o con el botón "Entrar como demo".
 
 Verifica la conexión a la base de datos:
 
@@ -157,7 +172,8 @@ curl http://localhost:3000/api/health/db
 | `pnpm db:studio` | Abre Prisma Studio. |
 
 Los tests cubren el cálculo de IGV por línea y los totales de los comprobantes
-en `tests/nubefact.test.ts`. El flujo de integración continua en
+en `tests/nubefact.test.ts`, y la protección de la API (401 sin sesión, 403 para el
+usuario de demostración) en `tests/auth.test.ts`. El flujo de integración continua en
 `.github/workflows/ci.yml` ejecuta lint, tipos, tests y build en cada pull
 request.
 
@@ -165,8 +181,8 @@ request.
 
 | Ruta | Descripción |
 | --- | --- |
-| `/` | Login (interfaz). |
-| `/register` | Registro (interfaz). |
+| `/` | Login. |
+| `/register` | Registro (solo con `AUTH_ALLOW_SIGNUP=true`). |
 | `/admin/dashboard` | Dashboard (placeholder). |
 | `/admin/clientes` | Gestión de clientes. |
 | `/admin/productos` | Gestión de productos. |
@@ -177,12 +193,13 @@ request.
 
 | Método | Ruta | Descripción |
 | --- | --- | --- |
-| `GET` | `/api/health/db` | Verifica la conexión con PostgreSQL. |
+| `GET` / `POST` | `/api/auth/*` | Inicio de sesión, registro, cierre y lectura de sesión (Better Auth). Pública. |
+| `GET` | `/api/health/db` | Verifica la conexión con PostgreSQL. Pública; solo responde `ok` o `error`. |
 | `GET` / `POST` | `/api/clientes` | Lista paginada y crea clientes. |
 | `PUT` / `DELETE` | `/api/clientes/[id]` | Actualiza y elimina un cliente. |
 | `GET` | `/api/consulta/dni` | Consulta los datos de un DNI en RENIEC (Decolecta). |
 | `GET` | `/api/consulta/ruc` | Consulta los datos de un RUC en SUNAT (Decolecta). |
-| `POST` | `/api/cloudinary/signature` | Firma los parámetros de subida a Cloudinary. |
+| `POST` | `/api/cloudinary/signature` | Firma una subida a la carpeta de productos de Cloudinary. |
 | `GET` / `POST` | `/api/productos` | Lista paginada y crea productos. |
 | `PUT` / `DELETE` | `/api/productos/[id]` | Actualiza y elimina un producto. |
 | `GET` / `POST` | `/api/categorias` | Lista paginada y crea categorías. |
@@ -192,6 +209,11 @@ request.
 | `POST` | `/api/ventas/[id]/comprobante` | Reintenta la emisión de un comprobante pendiente. |
 
 Los listados aceptan `page` y `pageSize` (máximo 100).
+
+Salvo `/api/auth/*` y `/api/health/db`, todos los endpoints exigen sesión:
+responden `401` sin ella y `403` cuando el usuario de demostración intenta algo
+que no sea una lectura. Las consultas de DNI y RUC están limitadas a 10 por
+minuto por usuario.
 
 ## Facturación electrónica
 
@@ -218,7 +240,7 @@ La documentación de referencia de la API está en `NUBEFACT DOC API JSON V1.md`
 
 Las imágenes se eligen desde el formulario de productos de tres formas: subiendo un archivo (`JPG`, `PNG` o `WebP` de hasta 5 MB), arrastrándolo sobre el área de imagen o pegando una URL pública. En los tres casos la imagen se almacena en la carpeta `facturastock/products` de Cloudinary.
 
-La subida es **firmada**: el navegador pide la firma a `POST /api/cloudinary/signature` y envía el archivo (o la URL remota) a la API de subida de Cloudinary con esa firma. El `CLOUDINARY_API_SECRET` nunca sale del servidor. La URL segura y el `public_id` se guardan en `products.image_url` e `products.image_public_id`, y el listado los muestra con un `Avatar` de HeroUI.
+La subida es **firmada**: el navegador pide la firma a `POST /api/cloudinary/signature` y envía el archivo (o la URL remota) a la API de subida de Cloudinary con esa firma. El servidor fija la carpeta y el `timestamp` que firma, así que la firma no sirve para otra carpeta ni para otros parámetros. El `CLOUDINARY_API_SECRET` nunca sale del servidor. La URL segura y el `public_id` se guardan en `products.image_url` e `products.image_public_id`, y el listado los muestra con un `Avatar` de HeroUI.
 
 Al quitar la imagen de un producto solo se borra la referencia en la base de datos; el archivo permanece en Cloudinary.
 
@@ -230,6 +252,7 @@ app/
   api/              # Route Handlers de la API
   register/         # Pantalla de registro
   page.tsx          # Login
+proxy.ts            # Comprobación optimista de la cookie de sesión
 components/
   admin/            # Sidebar
   categorias/       # Tabla y formularios de categorías
@@ -238,8 +261,6 @@ components/
   productos/        # Tabla y formularios de productos
   register/         # Formulario de registro
   ventas/           # Tabla, formulario y anulación de ventas
-docs/
-  authentication.md # Análisis de Auth.js vs next-auth y guía de implementación
 prisma/
   migrations/       # Migraciones de la base de datos
   schema.prisma     # Modelos y enums
@@ -251,6 +272,9 @@ src/
   lib/types/        # Tipos de dominio del frontend
   lib/validations/  # Esquemas Zod
   lib/prisma.ts     # Instancia compartida de Prisma
+  lib/auth.ts       # Configuración de Better Auth
+  lib/auth-policy.ts # Roles y reglas de acceso
+  lib/api/session.ts # requireSession para los Route Handlers
   lib/nubefact.ts   # Integración con Nubefact
   lib/decolecta.ts  # Consulta de DNI y RUC con Decolecta
 ```
@@ -272,7 +296,8 @@ const products = await prisma.product.findMany({
 
 ### Modelos
 
-`Customer`, `Category`, `Product`, `Sale`, `SaleItem`, `Invoice` e `InvoiceCounter`
+`Customer`, `Category`, `Product`, `Sale`, `SaleItem`, `Invoice`, `InvoiceCounter`
+y los de autenticación `User`, `Session`, `Account` y `Verification`
 (ver `prisma/schema.prisma`).
 
 ### Notas de Prisma 7
@@ -284,15 +309,32 @@ const products = await prisma.product.findMany({
 
 ## Autenticación
 
-El login y el registro todavía son solo interfaz. La opción recomendada para
-implementarlos es **Auth.js v5** (el paquete `next-auth@beta`), no `next-auth`
-v4. El análisis completo, la comparativa de versiones y una guía de
-implementación adaptada a Prisma, Cache Components y `proxy.ts` están en
-[`docs/authentication.md`](docs/authentication.md).
+La autenticación usa [Better Auth](https://www.better-auth.com) con correo y
+contraseña y sesiones guardadas en PostgreSQL.
+
+- **Dos capas.** `proxy.ts` hace una comprobación rápida de la cookie para
+  `/admin/*` y `/api/*`. La validación real ocurre después: el layout de
+  `/admin` llama a `getCurrentUser()` y cada Route Handler empieza con
+  `requireSession(request)`.
+- **Roles.** `ADMIN` tiene acceso completo. `DEMO` solo puede hacer peticiones
+  `GET`: cualquier otro método responde `403 DEMO_READ_ONLY`. Tampoco puede
+  usar las consultas de DNI y RUC, porque gastan cuota de Decolecta.
+- **Cuenta de demostración.** El botón "Entrar como demo" llama a
+  `POST /api/auth/demo`, que inicia la sesión en el servidor con
+  `DEMO_USER_EMAIL` y `DEMO_USER_PASSWORD`. Las credenciales no aparecen en la
+  página ni en el código del navegador. Sin esas variables, el botón no se
+  muestra.
+- **Registro.** Cerrado por defecto. Con `AUTH_ALLOW_SIGNUP=true` cada cuenta
+  nueva es `ADMIN`, así que no lo abras en una demo pública.
+- **Endpoints de Better Auth.** Solo se exponen inicio de sesión, registro,
+  cierre y lectura de sesión. El resto (cambio de contraseña, de correo...)
+  responde `404`, para que nadie cambie la contraseña de la cuenta de
+  demostración.
 
 ## Limitaciones actuales
 
-- No hay autenticación real: login y registro son solo interfaz y las rutas del admin no están protegidas.
+- No hay recuperación de contraseña ni gestión de usuarios desde la interfaz.
+- El límite de las consultas de DNI y RUC se guarda en memoria, por proceso.
 - El dashboard es un placeholder.
 - Solo se emiten facturas y boletas; no hay notas de crédito ni débito.
 - La emisión real requiere credenciales válidas de Nubefact.
@@ -303,4 +345,4 @@ implementación adaptada a Prisma, Cache Components y `proxy.ts` están en
 - [Documentación de Prisma ORM 7](https://www.prisma.io/docs/orm)
 - [Documentación de HeroUI](https://www.heroui.com/docs)
 - [Nubefact](https://www.nubefact.com/)
-- [Auth.js](https://authjs.dev)
+- [Better Auth](https://www.better-auth.com)

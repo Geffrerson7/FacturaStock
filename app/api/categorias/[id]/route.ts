@@ -3,6 +3,7 @@ import { CATEGORY_INCLUDE, mapCategory } from "@/src/lib/api/category";
 import type { ConflictOptions } from "@/src/lib/api/errors";
 import { ApiError, handleApiError } from "@/src/lib/api/errors";
 import { parseJsonBody } from "@/src/lib/api/request";
+import { requireSession } from "@/src/lib/api/session";
 import { prisma } from "@/src/lib/prisma";
 import {
   categoryIdSchema,
@@ -43,6 +44,8 @@ export async function PUT(
   ctx: RouteContext<"/api/categorias/[id]">,
 ) {
   try {
+    await requireSession(request);
+
     const { id } = await ctx.params;
     const categoryId = parseCategoryId(id);
     const data = await parseJsonBody(request, updateCategorySchema);
@@ -71,10 +74,12 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   ctx: RouteContext<"/api/categorias/[id]">,
 ) {
   try {
+    await requireSession(request);
+
     const { id } = await ctx.params;
     const categoryId = parseCategoryId(id);
 

@@ -1,6 +1,7 @@
 import type { Prisma } from "@/src/generated/prisma/client";
 
 import { ApiError, handleApiError } from "@/src/lib/api/errors";
+import { requireSession } from "@/src/lib/api/session";
 import { parseSaleId, SALE_INCLUDE } from "@/src/lib/api/sale";
 import { prisma } from "@/src/lib/prisma";
 import {
@@ -9,10 +10,12 @@ import {
 } from "@/src/lib/nubefact";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   ctx: RouteContext<"/api/ventas/[id]/anular">,
 ) {
   try {
+    await requireSession(request);
+
     const { id } = await ctx.params;
     const saleId = parseSaleId(id);
 

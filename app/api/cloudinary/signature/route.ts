@@ -1,35 +1,6 @@
-import { createHash } from "node:crypto";
-
-import { z } from "zod";
-
 import { ApiError, handleApiError } from "@/src/lib/api/errors";
-import { parseJsonBody } from "@/src/lib/api/request";
-
-const signatureRequestSchema = z.object({
-  paramsToSign: z.record(
-    z.string(),
-    z.union([z.string(), z.number(), z.boolean()]),
-  ),
-});
-
-/**
- * Firma los parámetros de una subida a Cloudinary.
- *
- * La firma es `sha1(params ordenados + api_secret)`, el mismo algoritmo que
- * usa `cloudinary.utils.api_sign_request`. El API secret nunca sale del
- * servidor.
- */
-function signParams(
-  params: Record<string, string | number | boolean>,
-  apiSecret: string,
-): string {
-  const toSign = Object.keys(params)
-    .sort()
-    .map((key) => `${key}=${params[key]}`)
-    .join("&");
-
-  return createHash("sha1").update(`${toSign}${apiSecret}`).digest("hex");
-}
+import { requireSession } from "@/src/lib/api/session";
+import { signProductImageUpload } from "@/src/lib/cloudinary";
 
 function getApiSecret(): string {
   let secret = process.env.CLOUDINARY_API_SECRET;
@@ -53,20 +24,18 @@ function getApiSecret(): string {
 }
 
 /**
- * Firma las subidas a Cloudinary.
+ * Firma una subida de imagen de producto a Cloudinary.
  *
  * POST /api/cloudinary/signature
+ *
+ * No acepta parámetros del cliente: el servidor fija la carpeta y el
+ * timestamp, y devuelve ambos junto con la firma.
  */
 export async function POST(request: Request) {
   try {
-    const { paramsToSign } = await parseJsonBody(
-      request,
-      signatureRequestSchema,
-    );
+    await requireSession(request);
 
-    return Response.json({
-      signature: signParams(paramsToSign, getApiSecret()),
-    });
+    return Response.json(signProductImageUpload(getApiSecret()));
   } catch (error) {
     return handleApiError(error);
   }
