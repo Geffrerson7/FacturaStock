@@ -2,6 +2,7 @@ import { Prisma } from "@/src/generated/prisma/client";
 import type { ConflictOptions } from "@/src/lib/api/errors";
 import { ApiError, handleApiError } from "@/src/lib/api/errors";
 import { parseJsonBody } from "@/src/lib/api/request";
+import { requireSession } from "@/src/lib/api/session";
 import { prisma } from "@/src/lib/prisma";
 import {
   productIdSchema,
@@ -58,6 +59,8 @@ export async function PUT(
   ctx: RouteContext<"/api/productos/[id]">,
 ) {
   try {
+    await requireSession(request);
+
     const { id } = await ctx.params;
     const productId = parseProductId(id);
     const data = await parseJsonBody(request, updateProductSchema);
@@ -88,10 +91,12 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   ctx: RouteContext<"/api/productos/[id]">,
 ) {
   try {
+    await requireSession(request);
+
     const { id } = await ctx.params;
     const productId = parseProductId(id);
 

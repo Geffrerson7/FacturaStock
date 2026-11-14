@@ -2,6 +2,7 @@ import type { ConflictOptions } from "@/src/lib/api/errors";
 import { handleApiError } from "@/src/lib/api/errors";
 import { CATEGORY_INCLUDE, mapCategory } from "@/src/lib/api/category";
 import { parseJsonBody, parseSearchParams } from "@/src/lib/api/request";
+import { requireSession } from "@/src/lib/api/session";
 import { prisma } from "@/src/lib/prisma";
 import {
   createCategorySchema,
@@ -16,6 +17,8 @@ const CATEGORY_CONFLICT: ConflictOptions = {
 
 export async function GET(request: Request) {
   try {
+    await requireSession(request);
+
     const { page, pageSize } = parseSearchParams(
       request,
       listCategoriesQuerySchema,
@@ -54,6 +57,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    await requireSession(request);
+
     const data = await parseJsonBody(request, createCategorySchema);
     const category = await prisma.category.create({
       data,

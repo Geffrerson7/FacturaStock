@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ComponentProps } from "react";
+import { useState, useTransition, type ComponentProps } from "react";
 import {
   Button,
   FieldError,
@@ -10,7 +10,10 @@ import {
   TextField,
   toast,
 } from "@heroui/react";
+import { useRouter } from "next/navigation";
 import { z } from "zod";
+
+import { authClient } from "@/src/lib/auth-client";
 
 type FieldErrors = Record<string, string>;
 
@@ -43,10 +46,11 @@ const registerSchema = z
   });
 
 export default function RegisterForm() {
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const router = useRouter();
+  const [isRequesting, setIsSubmitting] = useState(false);
+  const [isNavigating, startNavigation] = useTransition();
+  const isSubmitting = isRequesting || isNavigating;
   const [errors, setErrors] = useState<FieldErrors>({});
-  // Cambiar la key vuelve a montar el formulario y lo deja vacío.
-  const [formKey, setFormKey] = useState(0);
 
   async function handleSubmit(event: FormSubmitEvent) {
     event.preventDefault();
@@ -67,19 +71,38 @@ export default function RegisterForm() {
     setErrors({});
     setIsSubmitting(true);
 
-    // Solo interfaz: todavía no existe un endpoint de registro.
-    toast.success("Datos válidos", {
-      description:
-        "La interfaz está lista. El registro todavía no está conectado a un backend.",
+    const { error } = await authClient.signUp.email({
+      name: parsed.data.fullName,
+      email: parsed.data.email,
+      password: parsed.data.password,
     });
 
-    setFormKey((key) => key + 1);
+    if (error) {
+      if (error.status === 422 || error.code?.startsWith("USER_ALREADY_EXISTS")) {
+        setErrors({ email: "Ya existe una cuenta con ese correo." });
+      } else {
+        toast.danger("No se pudo crear la cuenta", {
+          description:
+            error.status === 429
+              ? "Demasiados intentos. Espera unos segundos y vuelve a probar."
+              : "Inténtalo de nuevo en unos segundos.",
+        });
+      }
+      setIsSubmitting(false);
+      return;
+    }
+
+    // El registro inicia la sesión automáticamente. El botón se libera al
+    // terminar la navegación, porque Next conserva el estado de esta pantalla.
+    startNavigation(() => {
+      router.push("/admin/dashboard");
+      router.refresh();
+    });
     setIsSubmitting(false);
   }
 
   return (
     <Form
-      key={formKey}
       className="mt-8 flex w-full flex-col gap-4"
       validationErrors={errors}
       validationBehavior="aria"

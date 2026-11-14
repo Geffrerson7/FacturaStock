@@ -1,13 +1,20 @@
+import { Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Button } from "@heroui/react";
-import { FcGoogle } from "react-icons/fc";
 
+import RedirectIfAuthenticated from "@/components/login/RedirectIfAuthenticated";
 import RegisterForm from "@/components/register/RegisterForm";
+import { isSignUpEnabled } from "@/src/lib/auth-policy";
 
 export default function RegisterPage() {
+  const signUpEnabled = isSignUpEnabled();
+
   return (
     <main className="flex h-screen">
+      <Suspense fallback={null}>
+        <RedirectIfAuthenticated />
+      </Suspense>
+
       <div className="hidden w-[60%] items-center justify-center bg-linear-to-b from-[#4334eb] to-[#1d118c] text-white lg:flex">
         <Image
           src="/auth-wallpaper.svg"
@@ -32,26 +39,35 @@ export default function RegisterPage() {
           <h1 className="text-2xl font-semibold">FacturaStock</h1>
         </div>
 
-        <h2 className="mt-10 text-2xl font-semibold">Crea tu cuenta</h2>
-        <p className="mt-2 text-gray-600">
-          ¿Ya tienes una cuenta?{" "}
-          <Link href="/" className="font-bold text-black underline">
-            Inicia sesión
-          </Link>
-          , es gratis y solo te tomará menos de un minuto.
-        </p>
+        {signUpEnabled ? (
+          <>
+            <h2 className="mt-10 text-2xl font-semibold">Crea tu cuenta</h2>
+            <p className="mt-2 text-gray-600">
+              Es gratis y solo te tomará menos de un minuto. ¿Ya tienes una
+              cuenta?{" "}
+              <Link href="/" className="font-bold text-black underline">
+                Inicia sesión
+              </Link>
+              .
+            </p>
 
-        <RegisterForm />
-
-        <div className="my-6 flex items-center gap-3 text-xs text-slate-400">
-          <span className="h-px flex-1 bg-slate-200" />
-          o
-          <span className="h-px flex-1 bg-slate-200" />
-        </div>
-
-        <Button className="flex w-full items-center justify-center gap-3 bg-gray-100 p-2 text-black">
-          <FcGoogle /> Registrarse con Google
-        </Button>
+            <RegisterForm />
+          </>
+        ) : (
+          <>
+            <h2 className="mt-10 text-2xl font-semibold">
+              El registro está cerrado
+            </h2>
+            <p className="mt-2 text-gray-600">
+              Esta instalación no admite cuentas nuevas. Vuelve a la pantalla
+              de{" "}
+              <Link href="/" className="font-bold text-black underline">
+                inicio de sesión
+              </Link>
+              .
+            </p>
+          </>
+        )}
       </div>
     </main>
   );

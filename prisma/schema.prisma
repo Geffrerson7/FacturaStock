@@ -171,3 +171,83 @@ model Invoice {
   @@unique([series, number])
   @@map("invoices")
 }
+
+// ---------------------------------------------------------------------------
+// Autenticación (Better Auth)
+// ---------------------------------------------------------------------------
+// Los nombres de los modelos y de los campos son los que espera Better Auth;
+// solo cambian los nombres de las tablas y columnas con @map.
+
+enum UserRole {
+  ADMIN
+  // Usuario de demostración: solo lectura (peticiones GET).
+  DEMO
+}
+
+model User {
+  id            String   @id
+  name          String   @db.VarChar(120)
+  email         String   @unique @db.VarChar(120)
+  emailVerified Boolean  @default(false) @map("email_verified")
+  image         String?  @db.Text
+  role          UserRole @default(ADMIN)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  sessions Session[]
+  accounts Account[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  ipAddress String?  @map("ip_address") @db.Text
+  userAgent String?  @map("user_agent") @db.Text
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// Una fila por método de acceso. La contraseña cifrada vive aquí, en la
+// cuenta con providerId "credential".
+model Account {
+  id                    String    @id
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  userId                String    @map("user_id")
+  accessToken           String?   @map("access_token") @db.Text
+  refreshToken          String?   @map("refresh_token") @db.Text
+  idToken               String?   @map("id_token") @db.Text
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
+  scope                 String?   @db.Text
+  password              String?   @db.Text
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String   @db.Text
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([identifier])
+  @@map("verifications")
+}

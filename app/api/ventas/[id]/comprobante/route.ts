@@ -1,13 +1,16 @@
 import { ApiError, handleApiError } from "@/src/lib/api/errors";
+import { requireSession } from "@/src/lib/api/session";
 import { emitSaleInvoice } from "@/src/lib/api/invoice";
 import { parseSaleId, SALE_INCLUDE } from "@/src/lib/api/sale";
 import { prisma } from "@/src/lib/prisma";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   ctx: RouteContext<"/api/ventas/[id]/comprobante">,
 ) {
   try {
+    await requireSession(request);
+
     const { id } = await ctx.params;
     const saleId = parseSaleId(id);
 

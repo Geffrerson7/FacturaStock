@@ -2,6 +2,7 @@ import { Prisma } from "@/src/generated/prisma/client";
 import { ApiError, handleApiError } from "@/src/lib/api/errors";
 import { normalizeCustomerData } from "@/src/lib/api/customer-data";
 import { parseJsonBody } from "@/src/lib/api/request";
+import { requireSession } from "@/src/lib/api/session";
 import { prisma } from "@/src/lib/prisma";
 import {
   customerIdSchema,
@@ -36,6 +37,8 @@ export async function PUT(
   ctx: RouteContext<"/api/clientes/[id]">,
 ) {
   try {
+    await requireSession(request);
+
     const { id } = await ctx.params;
     const customerId = parseCustomerId(id);
     const data = await parseJsonBody(request, updateCustomerSchema);
@@ -63,10 +66,12 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   ctx: RouteContext<"/api/clientes/[id]">,
 ) {
   try {
+    await requireSession(request);
+
     const { id } = await ctx.params;
     const customerId = parseCustomerId(id);
 

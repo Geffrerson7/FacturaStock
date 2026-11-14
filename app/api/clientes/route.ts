@@ -1,6 +1,7 @@
 import { handleApiError } from "@/src/lib/api/errors";
 import { normalizeCustomerData } from "@/src/lib/api/customer-data";
 import { parseJsonBody, parseSearchParams } from "@/src/lib/api/request";
+import { requireSession } from "@/src/lib/api/session";
 import { prisma } from "@/src/lib/prisma";
 import {
   createCustomerSchema,
@@ -9,6 +10,8 @@ import {
 
 export async function POST(request: Request) {
   try {
+    await requireSession(request);
+
     const data = await parseJsonBody(request, createCustomerSchema);
     const customer = await prisma.customer.create({
       data: normalizeCustomerData(data),
@@ -22,6 +25,8 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
+    await requireSession(request);
+
     const { page, pageSize } = parseSearchParams(
       request,
       listCustomersQuerySchema,
@@ -55,4 +60,4 @@ export async function GET(request: Request) {
   } catch (error) {
     return handleApiError(error);
   }
-}
+}

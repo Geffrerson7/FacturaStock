@@ -18,6 +18,9 @@ jobs:
       # El build no se conecta a la base, pero el cliente de Prisma exige la
       # variable al importarse.
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/facturastock?schema=public
+      # Valores de relleno: Better Auth los exige al cargar la configuración.
+      BETTER_AUTH_SECRET: ci-only-secret-not-used-anywhere-else
+      BETTER_AUTH_URL: http://localhost:3000
 
     steps:
       - name: Checkout

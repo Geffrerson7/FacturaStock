@@ -1,6 +1,7 @@
 import type { ConflictOptions } from "@/src/lib/api/errors";
 import { ApiError, handleApiError } from "@/src/lib/api/errors";
 import { parseJsonBody, parseSearchParams } from "@/src/lib/api/request";
+import { requireSession } from "@/src/lib/api/session";
 import { prisma } from "@/src/lib/prisma";
 import {
   createProductSchema,
@@ -24,6 +25,8 @@ function categoryNotFound() {
 
 export async function GET(request: Request) {
   try {
+    await requireSession(request);
+
     const { page, pageSize } = parseSearchParams(
       request,
       listProductsQuerySchema,
@@ -62,6 +65,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    await requireSession(request);
+
     const data = await parseJsonBody(request, createProductSchema);
 
     const category = await prisma.category.findUnique({

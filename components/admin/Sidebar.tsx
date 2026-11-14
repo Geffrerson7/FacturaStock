@@ -6,6 +6,10 @@ import { CiUser, CiMoneyBill } from "react-icons/ci";
 import { FiLogOut } from "react-icons/fi";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
+
+import { authClient } from "@/src/lib/auth-client";
+import type { SessionUser } from "@/src/lib/auth-policy";
 
 interface Item {
    name: string,
@@ -13,8 +17,21 @@ interface Item {
    icon: React.ReactNode
 }
 
-export default function Sidebar() {
+type SidebarUser = Pick<SessionUser, "name" | "email" | "role">;
+
+export default function Sidebar({ user }: { user: SidebarUser }) {
    const pathname = usePathname();
+   const [isSigningOut, setIsSigningOut] = useState(false);
+
+   async function handleSignOut() {
+      setIsSigningOut(true);
+      await authClient.signOut();
+      // Carga completa a propósito: descarta el estado y los datos del panel
+      // que Next guarda en el navegador, para que nada sobreviva al cierre de
+      // sesión (router.push los conservaría).
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.assign("/");
+   }
 
    const menuItems: Item[] = [
       {
@@ -82,13 +99,29 @@ export default function Sidebar() {
             </ul>
          </nav>
 
-         <Link
-            href="/"
-            className="mt-auto flex items-center gap-3 rounded-xl border border-red-200 p-2 text-red-600 transition-colors hover:bg-red-50"
-         >
-            <span className="text-2xl"><FiLogOut /></span>
-            Cerrar sesión
-         </Link>
+         <div className="mt-auto flex flex-col gap-3">
+            {user.role === "DEMO" ? (
+               <p className="rounded-xl border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                  Modo demostración: puedes ver todo, pero no crear, editar ni
+                  eliminar.
+               </p>
+            ) : null}
+
+            <div className="min-w-0 px-2 text-sm">
+               <p className="truncate font-medium text-slate-800">{user.name}</p>
+               <p className="truncate text-slate-500">{user.email}</p>
+            </div>
+
+            <button
+               type="button"
+               onClick={handleSignOut}
+               disabled={isSigningOut}
+               className="flex w-full items-center gap-3 rounded-xl border border-red-200 p-2 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60"
+            >
+               <span className="text-2xl"><FiLogOut /></span>
+               {isSigningOut ? "Cerrando sesión..." : "Cerrar sesión"}
+            </button>
+         </div>
       </aside>
    )
 }

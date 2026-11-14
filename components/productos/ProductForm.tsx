@@ -34,7 +34,9 @@ type ProductImage = {
   publicId: string;
 };
 
-const UPLOAD_FOLDER = "facturastock/products";
+/** Error con un mensaje del servidor que se puede mostrar tal cual. */
+class UploadError extends Error {}
+
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
@@ -112,29 +114,33 @@ export default function ProductForm({
     setIsUploading(true);
 
     try {
-      const timestamp = Math.floor(Date.now() / 1000);
-
+      // El servidor decide la carpeta y el timestamp; aquí solo se reenvían.
       const signatureResponse = await fetch("/api/cloudinary/signature", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          paramsToSign: { folder: UPLOAD_FOLDER, timestamp },
-        }),
       });
 
       if (!signatureResponse.ok) {
-        throw new Error("No se pudo firmar la subida.");
+        const payload = (await signatureResponse.json().catch(() => null)) as {
+          error?: { message?: string };
+        } | null;
+
+        throw new UploadError(
+          payload?.error?.message ?? "No se pudo firmar la subida.",
+        );
       }
 
-      const { signature } = (await signatureResponse.json()) as {
-        signature: string;
-      };
+      const { signature, timestamp, folder } =
+        (await signatureResponse.json()) as {
+          signature: string;
+          timestamp: number;
+          folder: string;
+        };
 
       const body = new FormData();
       body.append("file", source);
       body.append("api_key", apiKey);
       body.append("timestamp", String(timestamp));
-      body.append("folder", UPLOAD_FOLDER);
+      body.append("folder", folder);
       body.append("signature", signature);
 
       const uploadResponse = await fetch(
@@ -153,10 +159,12 @@ export default function ProductForm({
       toast.success("Imagen lista", {
         description: "La imagen se guardará al registrar el producto.",
       });
-    } catch {
+    } catch (error) {
       toast.danger("No se pudo subir la imagen", {
         description:
-          typeof source === "string"
+          error instanceof UploadError
+            ? error.message
+            : typeof source === "string"
             ? "Revisa que la URL apunte a una imagen pública."
             : "Inténtalo de nuevo en unos segundos.",
       });

@@ -2,6 +2,7 @@ import { Prisma } from "@/src/generated/prisma/client";
 import { ApiError, handleApiError } from "@/src/lib/api/errors";
 import { emitSaleInvoice } from "@/src/lib/api/invoice";
 import { parseJsonBody, parseSearchParams } from "@/src/lib/api/request";
+import { requireSession } from "@/src/lib/api/session";
 import { SALE_INCLUDE } from "@/src/lib/api/sale";
 import { prisma } from "@/src/lib/prisma";
 import { resolveInvoiceIdentity } from "@/src/lib/nubefact";
@@ -12,6 +13,8 @@ import {
 
 export async function GET(request: Request) {
   try {
+    await requireSession(request);
+
     const { page, pageSize } = parseSearchParams(request, listSalesQuerySchema);
 
     const [sales, total] = await prisma.$transaction([
@@ -47,6 +50,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    await requireSession(request);
+
     const data = await parseJsonBody(request, createSaleSchema);
 
     const customer = data.customerId
