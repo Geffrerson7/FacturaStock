@@ -1,6 +1,14 @@
 import { handleApiError } from "@/src/lib/api/errors";
-import { normalizeCustomerData } from "@/src/lib/api/customer-data";
-import { parseJsonBody, parseSearchParams } from "@/src/lib/api/request";
+import {
+  buildCustomerOrderBy,
+  buildCustomerWhere,
+  normalizeCustomerData,
+} from "@/src/lib/api/customer-data";
+import {
+  paginatedResponse,
+  parseJsonBody,
+  parseSearchParams,
+} from "@/src/lib/api/request";
 import { requireSession } from "@/src/lib/api/session";
 import { prisma } from "@/src/lib/prisma";
 import {
@@ -27,37 +35,23 @@ export async function GET(request: Request) {
   try {
     await requireSession(request);
 
-    const { page, pageSize } = parseSearchParams(
-      request,
-      listCustomersQuerySchema,
-    );
+    const query = parseSearchParams(request, listCustomersQuerySchema);
+    const { page, pageSize } = query;
+    // El cliente walk-in nunca aparece en el listado.
+    const where = buildCustomerWhere(query);
 
     const [customers, total] = await prisma.$transaction([
       prisma.customer.findMany({
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        where,
+        orderBy: buildCustomerOrderBy(query),
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
-      prisma.customer.count(),
+      prisma.customer.count({ where }),
     ]);
 
-    const totalPages = Math.ceil(total / pageSize);
-
-    return Response.json(
-      {
-        data: customers,
-        pagination: {
-          page,
-          pageSize,
-          total,
-          totalPages,
-          hasNextPage: page < totalPages,
-          hasPreviousPage: page > 1,
-        },
-      },
-      { status: 200 },
-    );
+    return paginatedResponse(customers, total, { page, pageSize });
   } catch (error) {
     return handleApiError(error);
   }
-}
+}

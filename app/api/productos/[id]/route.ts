@@ -1,6 +1,7 @@
 import { Prisma } from "@/src/generated/prisma/client";
 import type { ConflictOptions } from "@/src/lib/api/errors";
 import { ApiError, handleApiError } from "@/src/lib/api/errors";
+import { removeProductImageIfUnused } from "@/src/lib/api/product";
 import { parseJsonBody } from "@/src/lib/api/request";
 import { requireSession } from "@/src/lib/api/session";
 import { prisma } from "@/src/lib/prisma";
@@ -11,7 +12,7 @@ import {
 
 const PRODUCT_CONFLICT: ConflictOptions = {
   code: "PRODUCT_ALREADY_EXISTS",
-  entity: "product",
+  entity: "un producto",
   fields: ["sku"],
 };
 
@@ -19,23 +20,24 @@ function parseProductId(id: string) {
   const result = productIdSchema.safeParse(id);
 
   if (!result.success) {
-    throw new ApiError(400, "VALIDATION_ERROR", "Product id is invalid.", {
-      details: result.error.issues.map((issue) => ({
-        path: "id",
-        message: issue.message,
-      })),
-    });
+    throw new ApiError(
+      400,
+      "VALIDATION_ERROR",
+      "El identificador del producto no es válido.",
+      {
+        details: result.error.issues.map((issue) => ({
+          path: "id",
+          message: issue.message,
+        })),
+      },
+    );
   }
 
   return result.data;
 }
 
 function productNotFound() {
-  return new ApiError(
-    404,
-    "PRODUCT_NOT_FOUND",
-    "The product does not exist.",
-  );
+  return new ApiError(404, "PRODUCT_NOT_FOUND", "El producto no existe.");
 }
 
 async function ensureCategoryExists(categoryId: string) {
@@ -48,7 +50,7 @@ async function ensureCategoryExists(categoryId: string) {
     throw new ApiError(
       400,
       "VALIDATION_ERROR",
-      "The selected category does not exist.",
+      "La categoría seleccionada no existe.",
       { field: "categoryId" },
     );
   }
@@ -67,12 +69,26 @@ export async function PUT(
 
     await ensureCategoryExists(data.categoryId);
 
+    const previous = await prisma.product.findUnique({
+      where: { id: productId },
+      select: { imagePublicId: true },
+    });
+
+    if (!previous) {
+      throw productNotFound();
+    }
+
     try {
       const product = await prisma.product.update({
         where: { id: productId },
         data,
         include: { category: true },
       });
+
+      // La imagen anterior se borra de Cloudinary si se reemplazó o se quitó.
+      if (previous.imagePublicId !== product.imagePublicId) {
+        await removeProductImageIfUnused(previous.imagePublicId);
+      }
 
       return Response.json({ data: product }, { status: 200 });
     } catch (error) {
@@ -101,7 +117,12 @@ export async function DELETE(
     const productId = parseProductId(id);
 
     try {
-      await prisma.product.delete({ where: { id: productId } });
+      const deleted = await prisma.product.delete({
+        where: { id: productId },
+        select: { imagePublicId: true },
+      });
+
+      await removeProductImageIfUnused(deleted.imagePublicId);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&

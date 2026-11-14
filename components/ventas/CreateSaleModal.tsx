@@ -4,21 +4,13 @@ import { Button, Modal, useOverlayState } from "@heroui/react";
 import { FiPlus } from "react-icons/fi";
 
 import SaleForm from "@/components/ventas/SaleForm";
-import type { Customer } from "@/src/lib/types/customer";
-import type { Product } from "@/src/lib/types/product";
 import type { Sale } from "@/src/lib/types/sale";
 
 type CreateSaleModalProps = {
-  products: Product[];
-  customers: Customer[];
   onCreated: (sale: Sale) => void;
 };
 
-export default function CreateSaleModal({
-  products,
-  customers,
-  onCreated,
-}: CreateSaleModalProps) {
+export default function CreateSaleModal({ onCreated }: CreateSaleModalProps) {
   const state = useOverlayState();
 
   return (
@@ -41,8 +33,6 @@ export default function CreateSaleModal({
             </Modal.Header>
             <Modal.Body>
               <SaleForm
-                products={products}
-                customers={customers}
                 onSuccess={(sale) => {
                   onCreated(sale);
                   state.close();

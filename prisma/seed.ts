@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 
 import { PrismaClient, type UserRole } from "../src/generated/prisma/client";
+import { WALK_IN_DNI } from "../src/lib/customer";
 import { getDemoCredentials } from "../src/lib/demo";
 
 const connectionString = process.env.DATABASE_URL;
@@ -100,10 +101,10 @@ async function main() {
   await seedUsers();
 
   await prisma.customer.upsert({
-    where: { dni: "00000000" },
+    where: { dni: WALK_IN_DNI },
     update: {},
     create: {
-      dni: "00000000",
+      dni: WALK_IN_DNI,
       firstName: "Walk-in",
       lastName: "Customer",
       address: "N/A",

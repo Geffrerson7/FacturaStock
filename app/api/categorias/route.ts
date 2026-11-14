@@ -1,7 +1,16 @@
 import type { ConflictOptions } from "@/src/lib/api/errors";
 import { handleApiError } from "@/src/lib/api/errors";
-import { CATEGORY_INCLUDE, mapCategory } from "@/src/lib/api/category";
-import { parseJsonBody, parseSearchParams } from "@/src/lib/api/request";
+import {
+  buildCategoryOrderBy,
+  buildCategoryWhere,
+  CATEGORY_INCLUDE,
+  mapCategory,
+} from "@/src/lib/api/category";
+import {
+  paginatedResponse,
+  parseJsonBody,
+  parseSearchParams,
+} from "@/src/lib/api/request";
 import { requireSession } from "@/src/lib/api/session";
 import { prisma } from "@/src/lib/prisma";
 import {
@@ -11,7 +20,7 @@ import {
 
 const CATEGORY_CONFLICT: ConflictOptions = {
   code: "CATEGORY_ALREADY_EXISTS",
-  entity: "category",
+  entity: "una categoría",
   fields: ["name"],
 };
 
@@ -19,37 +28,25 @@ export async function GET(request: Request) {
   try {
     await requireSession(request);
 
-    const { page, pageSize } = parseSearchParams(
-      request,
-      listCategoriesQuerySchema,
-    );
+    const query = parseSearchParams(request, listCategoriesQuerySchema);
+    const { page, pageSize } = query;
+    const where = buildCategoryWhere(query);
 
     const [categories, total] = await prisma.$transaction([
       prisma.category.findMany({
+        where,
         include: CATEGORY_INCLUDE,
-        orderBy: [{ name: "asc" }, { id: "asc" }],
+        orderBy: buildCategoryOrderBy(query),
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
-      prisma.category.count(),
+      prisma.category.count({ where }),
     ]);
 
-    const totalPages = Math.ceil(total / pageSize);
-
-    return Response.json(
-      {
-        data: categories.map(mapCategory),
-        pagination: {
-          page,
-          pageSize,
-          total,
-          totalPages,
-          hasNextPage: page < totalPages,
-          hasPreviousPage: page > 1,
-        },
-      },
-      { status: 200 },
-    );
+    return paginatedResponse(categories.map(mapCategory), total, {
+      page,
+      pageSize,
+    });
   } catch (error) {
     return handleApiError(error);
   }

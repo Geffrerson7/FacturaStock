@@ -5,6 +5,7 @@ import {
   buildNubefactInvoicePayload,
   consultNubefactInvoice,
   mapNubefactInvoice,
+  type NubefactCancellationResponse,
   NubefactError,
   resolveInvoiceIdentity,
   sendNubefactInvoice,
@@ -30,6 +31,33 @@ function invoiceDataFromResponse(
 }
 
 /**
+ * Datos del comprobante a partir de la respuesta de una anulación (al
+ * generarla o al consultarla). SUNAT procesa las bajas de forma asíncrona:
+ * mientras no la acepte, el comprobante queda en ANULACION_PENDIENTE.
+ */
+export function cancellationInvoiceData(
+  response: NubefactCancellationResponse,
+) {
+  const mapped = mapNubefactInvoice(response);
+
+  return {
+    status:
+      response.aceptada_por_sunat === true
+        ? ("ANULADO" as const)
+        : ("ANULACION_PENDIENTE" as const),
+    sunatAccepted: mapped.sunatAccepted,
+    sunatDescription: mapped.sunatDescription,
+    sunatNote: mapped.sunatNote,
+    sunatResponseCode: mapped.sunatResponseCode,
+    pdfUrl: mapped.pdfUrl,
+    xmlUrl: mapped.xmlUrl,
+    cdrUrl: mapped.cdrUrl,
+    errorMessage: null,
+    response: mapped.response as Prisma.InputJsonValue,
+  } satisfies Prisma.InvoiceUpdateInput;
+}
+
+/**
  * Emite el comprobante de una venta. No lanza error si Nubefact falla: la
  * venta queda guardada y el comprobante se marca PENDIENTE para reintentar.
  */
@@ -47,7 +75,13 @@ export async function emitSaleInvoice(
   }
 
   try {
-    const identity = resolveInvoiceIdentity(sale.customer);
+    // La serie y el tipo son los que se reservaron con la venta, aunque la
+    // configuración de series haya cambiado desde entonces.
+    const identity = {
+      ...resolveInvoiceIdentity(sale.customer),
+      series: invoice.series,
+      invoiceType: invoice.invoiceType as 1 | 2,
+    };
     const payload = buildNubefactInvoicePayload({
       identity,
       number: invoice.number,

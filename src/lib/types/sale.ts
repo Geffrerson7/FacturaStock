@@ -48,6 +48,9 @@ export type Sale = {
   number: number;
   customerId: string | null;
   customer: Customer | null;
+  /** Base imponible (sin IGV). */
+  taxableAmount: string;
+  igvAmount: string;
   total: string;
   status: SaleStatus;
   invoice: Invoice | null;

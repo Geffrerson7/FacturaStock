@@ -6,9 +6,9 @@ Aplicación de inventario y punto de venta construida con **Next.js 16** y **Pos
 
 - **Clientes**
   - Registro de personas naturales con DNI y empresas con RUC.
-  - CRUD con validaciones, búsqueda por documento y paginación.
+  - CRUD con validaciones y paginación; búsqueda por nombre o documento en la API.
   - Consulta de DNI (RENIEC) y RUC (SUNAT) para autocompletar los datos del cliente.
-  - Cliente walk-in (`DNI 00000000`) para ventas sin cliente identificado.
+  - Cliente walk-in (`DNI 00000000`) para ventas sin cliente identificado: es un registro del sistema, no aparece en el listado y no se puede editar ni eliminar.
 
 - **Productos**
   - CRUD con SKU único, precio, stock, categoría y estado activo/inactivo.
@@ -21,18 +21,20 @@ Aplicación de inventario y punto de venta construida con **Next.js 16** y **Pos
   - No se puede eliminar una categoría que tenga productos asignados.
 
 - **Ventas**
-  - Registro de ventas con descuento automático de stock.
-  - Anulación con reposición de stock.
+  - Registro de ventas con descuento automático de stock; los productos y el cliente se buscan en el servidor mientras se escribe.
+  - Cada venta guarda su base imponible, IGV y total.
+  - Anulación con reposición de stock, protegida contra anulaciones simultáneas.
   - Historial paginado con detalle de productos.
 
 - **Comprobantes electrónicos (Nubefact)**
-  - RUC → **Factura** (serie `FFF1`).
-  - DNI → **Boleta** (serie `BBB1`).
+  - RUC → **Factura** (serie `FFF1` por defecto).
+  - DNI → **Boleta** (serie `BBB1` por defecto).
+  - Series y correlativos iniciales configurables por variables de entorno.
   - Venta sin cliente o walk-in → boleta con documento `-` y número `0`.
   - Precios con IGV incluido (18 %).
   - Emisión automática al registrar la venta.
   - Si Nubefact falla, la venta se guarda y el comprobante queda **PENDIENTE** para reintentar.
-  - Anulación del comprobante en Nubefact al anular la venta.
+  - Anulación del comprobante en Nubefact al anular la venta, con consulta del resultado cuando SUNAT la deja pendiente.
   - Se guardan estado SUNAT, enlaces PDF/XML/CDR, hash, QR y respuesta de Nubefact.
 
 - **Autenticación**
@@ -89,10 +91,12 @@ Completa los valores en `.env`:
 | `DATABASE_URL` | Sí | Cadena de conexión de PostgreSQL. |
 | `NUBEFACT_API_URL` | Para facturar | URL de la API de Nubefact (incluye el identificador de la cuenta). |
 | `NUBEFACT_API_TOKEN` | Para facturar | Token de autenticación de Nubefact. |
+| `NUBEFACT_FACTURA_SERIES`, `NUBEFACT_BOLETA_SERIES` | No | Series de la cuenta de Nubefact: 4 caracteres, `F…` para facturas y `B…` para boletas. Por defecto `FFF1` y `BBB1`. |
+| `NUBEFACT_FACTURA_INITIAL_NUMBER`, `NUBEFACT_BOLETA_INITIAL_NUMBER` | No | Primer correlativo que se emite con cada serie. Por defecto `8` y `6`. |
 | `DECOLECTA_API_TOKEN` | Para consultar documentos | Token de Decolecta para consultar DNI y RUC. |
 | `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | Para subir imágenes | Cloud name de Cloudinary (público). |
 | `NEXT_PUBLIC_CLOUDINARY_API_KEY` | Para subir imágenes | API key de Cloudinary (público). |
-| `CLOUDINARY_API_SECRET` | Para subir imágenes | API secret de Cloudinary. Solo se usa en el servidor para firmar las subidas. |
+| `CLOUDINARY_API_SECRET` | Para subir imágenes | API secret de Cloudinary. Solo se usa en el servidor, para firmar las subidas y borrar las imágenes que dejan de usarse. |
 | `BETTER_AUTH_SECRET` | Sí | Secreto que firma las cookies de sesión. Genera uno con `openssl rand -base64 32`. |
 | `BETTER_AUTH_URL` | Sí | URL pública de la aplicación (`http://localhost:3000` en desarrollo). |
 | `AUTH_ALLOW_SIGNUP` | No | `true` abre el registro en `/register`. Por defecto está cerrado. |
@@ -207,8 +211,24 @@ request.
 | `GET` / `POST` | `/api/ventas` | Lista paginada y registra ventas (emite comprobante). |
 | `POST` | `/api/ventas/[id]/anular` | Anula la venta, repone stock y anula el comprobante. |
 | `POST` | `/api/ventas/[id]/comprobante` | Reintenta la emisión de un comprobante pendiente. |
+| `POST` | `/api/ventas/[id]/anulacion` | Consulta en Nubefact el resultado de una anulación pendiente y actualiza el comprobante. |
 
-Los listados aceptan `page` y `pageSize` (máximo 100).
+Los mensajes de error se devuelven en español, listos para mostrarse en la interfaz; el campo `error.code` identifica cada caso.
+
+### Búsqueda, filtros y orden
+
+Todos los listados aceptan `page` y `pageSize` (máximo 100), `q` para buscar, y `sort` con `order` (`asc` o `desc`) para ordenar. Cada palabra de `q` debe coincidir con alguno de los campos indicados.
+
+| Listado | `q` busca en | Filtros | `sort` |
+| --- | --- | --- | --- |
+| `/api/productos` | Nombre, SKU | `categoryId`, `isActive` (`true` o `false`) | `createdAt` (por defecto, `desc`), `name`, `sku`, `price`, `stock` |
+| `/api/clientes` | Nombres, apellidos, razón social, DNI, RUC, correo | `documentType` (`DNI` o `RUC`) | `createdAt` (por defecto, `desc`), `name`, `document` |
+| `/api/categorias` | Nombre, descripción | — | `name` (por defecto, `asc`), `createdAt`, `productCount` |
+| `/api/ventas` | Número de venta, serie y número del comprobante, cliente, productos | `status`, `invoiceStatus`, `from` y `to` (`AAAA-MM-DD`, hora de Lima, ambos inclusive) | `createdAt` (por defecto, `desc`), `number`, `total` |
+
+Ejemplo: `GET /api/productos?q=agua&isActive=true&sort=name&order=asc&pageSize=8` es la consulta que hace el buscador de productos del formulario de venta.
+
+Un parámetro con un valor no admitido responde `400` con el detalle en `error.details`.
 
 Salvo `/api/auth/*` y `/api/health/db`, todos los endpoints exigen sesión:
 responden `401` sin ella y `403` cuando el usuario de demostración intenta algo
@@ -232,7 +252,15 @@ Estados del comprobante:
 | `ANULADO` | Comprobante anulado. |
 | `ANULACION_PENDIENTE` | Nubefact devolvió un ticket de anulación pendiente de confirmación. |
 
-Los correlativos se guardan en `invoice_counters` y se reservan en la misma transacción que crea la venta. El reintento reutiliza el número ya asignado.
+SUNAT procesa las anulaciones de forma asíncrona. Mientras el comprobante está en `ANULACION_PENDIENTE`, la tabla de ventas muestra el botón **Actualizar estado**, que consulta el resultado en Nubefact (`consultar_anulacion`) y lo pasa a `ANULADO` cuando SUNAT acepta la baja.
+
+Los correlativos se guardan en `invoice_counters` y se reservan en la misma transacción que crea la venta. El reintento reutiliza la serie y el número ya asignados.
+
+Las series salen de `NUBEFACT_FACTURA_SERIES` y `NUBEFACT_BOLETA_SERIES`. La primera vez que se emite con una serie, el correlativo empieza en `NUBEFACT_*_INITIAL_NUMBER`; a partir de ahí manda la fila de `invoice_counters`, así que cambiar la variable después no mueve un correlativo ya iniciado.
+
+Cada venta guarda `taxable_amount` (base imponible) e `igv_amount`, calculados con el mismo redondeo por línea que se envía a Nubefact, de modo que base + IGV = total.
+
+Al anular, el cambio de estado de la venta es condicional (`UPDATE … WHERE status = 'COMPLETADA'`) y el stock solo se repone si esa actualización afectó una fila: dos anulaciones simultáneas no lo reponen dos veces.
 
 La documentación de referencia de la API está en `NUBEFACT DOC API JSON V1.md`.
 
@@ -242,7 +270,7 @@ Las imágenes se eligen desde el formulario de productos de tres formas: subiend
 
 La subida es **firmada**: el navegador pide la firma a `POST /api/cloudinary/signature` y envía el archivo (o la URL remota) a la API de subida de Cloudinary con esa firma. El servidor fija la carpeta y el `timestamp` que firma, así que la firma no sirve para otra carpeta ni para otros parámetros. El `CLOUDINARY_API_SECRET` nunca sale del servidor. La URL segura y el `public_id` se guardan en `products.image_url` e `products.image_public_id`, y el listado los muestra con un `Avatar` de HeroUI.
 
-Al quitar la imagen de un producto solo se borra la referencia en la base de datos; el archivo permanece en Cloudinary.
+Al reemplazar o quitar la imagen de un producto, o al eliminar el producto, el servidor borra la imagen anterior de Cloudinary. Solo borra archivos de la carpeta `facturastock/products` que ningún otro producto use. Si Cloudinary falla, el cambio en la base se conserva y el error queda en el log del servidor. Una imagen subida en un formulario que se cierra sin guardar sí queda en Cloudinary.
 
 ## Estructura del proyecto
 

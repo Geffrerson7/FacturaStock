@@ -1,16 +1,12 @@
 import { ApiError, handleApiError } from "@/src/lib/api/errors";
 import { requireSession } from "@/src/lib/api/session";
-import { signProductImageUpload } from "@/src/lib/cloudinary";
+import {
+  getCloudinaryApiSecret,
+  signProductImageUpload,
+} from "@/src/lib/cloudinary";
 
 function getApiSecret(): string {
-  let secret = process.env.CLOUDINARY_API_SECRET;
-
-  // CLOUDINARY_URL tiene el formato cloudinary://API_KEY:API_SECRET@CLOUD_NAME
-  if (!secret) {
-    const url = process.env.CLOUDINARY_URL;
-    const match = url?.match(/^cloudinary:\/\/[^:]+:([^@]+)@/);
-    secret = match?.[1];
-  }
+  const secret = getCloudinaryApiSecret();
 
   if (!secret) {
     throw new ApiError(
@@ -20,7 +16,7 @@ function getApiSecret(): string {
     );
   }
 
-  return secret.replace(/^["']|["']$/g, "");
+  return secret;
 }
 
 /**

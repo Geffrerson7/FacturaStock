@@ -1,15 +1,25 @@
 import { z } from "zod";
 
-export const productIdSchema = z.uuid("Product id must be a valid UUID.");
+import {
+  emptyToUndefined,
+  optionalBoolean,
+  paginationQuery,
+  searchQuery,
+  sortQuery,
+} from "./list";
+
+export const productIdSchema = z.uuid(
+  "El identificador del producto no es válido.",
+);
 
 const optionalDescription = z
   .preprocess(
     (value) =>
       typeof value === "string" && value.trim() === "" ? null : value,
     z
-      .string()
+      .string("La descripción debe ser un texto.")
       .trim()
-      .max(255, "Description must be at most 255 characters.")
+      .max(255, "La descripción no puede superar los 255 caracteres.")
       .nullable()
       .optional(),
   )
@@ -22,8 +32,8 @@ const optionalImageUrl = z
   .preprocess(
     emptyToNull,
     z
-      .url("Image URL must be a valid URL.")
-      .max(500, "Image URL must be at most 500 characters.")
+      .url("La URL de la imagen no es válida.")
+      .max(500, "La URL de la imagen no puede superar los 500 caracteres.")
       .nullable()
       .optional(),
   )
@@ -33,9 +43,12 @@ const optionalImagePublicId = z
   .preprocess(
     emptyToNull,
     z
-      .string()
+      .string("El identificador de la imagen debe ser un texto.")
       .trim()
-      .max(255, "Cloudinary public id must be at most 255 characters.")
+      .max(
+        255,
+        "El identificador de la imagen no puede superar los 255 caracteres.",
+      )
       .nullable()
       .optional(),
   )
@@ -43,37 +56,50 @@ const optionalImagePublicId = z
 
 export const createProductSchema = z.object({
   name: z
-    .string()
+    .string("El nombre del producto es obligatorio.")
     .trim()
-    .min(1, "Product name is required.")
-    .max(120, "Product name must be at most 120 characters."),
+    .min(1, "El nombre del producto es obligatorio.")
+    .max(120, "El nombre no puede superar los 120 caracteres."),
   sku: z
-    .string()
+    .string("El SKU es obligatorio.")
     .trim()
-    .min(1, "SKU is required.")
-    .max(50, "SKU must be at most 50 characters."),
+    .min(1, "El SKU es obligatorio.")
+    .max(50, "El SKU no puede superar los 50 caracteres."),
   description: optionalDescription,
   price: z.coerce
-    .number()
-    .finite("Price must be a valid number.")
-    .min(0, "Price cannot be negative.")
-    .max(99999999.99, "Price is too large."),
+    .number("El precio debe ser un número válido.")
+    .min(0, "El precio no puede ser negativo.")
+    .max(99999999.99, "El precio es demasiado alto."),
   stock: z.coerce
-    .number()
-    .int("Stock must be an integer.")
-    .min(0, "Stock cannot be negative.")
-    .max(1000000, "Stock is too large."),
-  categoryId: z.uuid("Category id must be a valid UUID."),
-  isActive: z.boolean().default(true),
+    .number("El stock debe ser un número válido.")
+    .int("El stock debe ser un número entero.")
+    .min(0, "El stock no puede ser negativo.")
+    .max(1000000, "El stock es demasiado alto."),
+  categoryId: z.uuid("Selecciona una categoría válida."),
+  isActive: z.boolean("El estado debe ser verdadero o falso.").default(true),
   imageUrl: optionalImageUrl,
   imagePublicId: optionalImagePublicId,
 });
 
 export const updateProductSchema = createProductSchema;
 
+export const PRODUCT_SORT_FIELDS = [
+  "createdAt",
+  "name",
+  "sku",
+  "price",
+  "stock",
+] as const;
+
 export const listProductsQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(10),
+  ...paginationQuery,
+  q: searchQuery,
+  categoryId: z.preprocess(
+    emptyToUndefined,
+    z.uuid("El identificador de la categoría no es válido.").optional(),
+  ),
+  isActive: optionalBoolean("El filtro isActive debe ser true o false."),
+  ...sortQuery(PRODUCT_SORT_FIELDS, { sort: "createdAt", order: "desc" }),
 });
 
 export type CreateProductInput = z.infer<typeof createProductSchema>;

@@ -36,6 +36,7 @@ import * as dniRoute from "@/app/api/consulta/dni/route";
 import * as rucRoute from "@/app/api/consulta/ruc/route";
 import * as productRoute from "@/app/api/productos/[id]/route";
 import * as productsRoute from "@/app/api/productos/route";
+import * as cancellationRoute from "@/app/api/ventas/[id]/anulacion/route";
 import * as cancelSaleRoute from "@/app/api/ventas/[id]/anular/route";
 import * as invoiceRoute from "@/app/api/ventas/[id]/comprobante/route";
 import * as salesRoute from "@/app/api/ventas/route";
@@ -85,6 +86,7 @@ const ENDPOINTS: Endpoint[] = [
   endpoint("GET", "/api/ventas", salesRoute),
   endpoint("POST", "/api/ventas", salesRoute),
   endpoint("POST", `/api/ventas/${ID}/anular`, cancelSaleRoute),
+  endpoint("POST", `/api/ventas/${ID}/anulacion`, cancellationRoute),
   endpoint("POST", `/api/ventas/${ID}/comprobante`, invoiceRoute),
   endpoint("POST", "/api/cloudinary/signature", signatureRoute),
   endpoint("GET", "/api/consulta/dni?numero=46027897", dniRoute),
