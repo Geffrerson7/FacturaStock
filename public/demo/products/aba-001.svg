@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Arroz extra 5 kg">
+  <rect width="128" height="128" rx="24" fill="#b9a77c" fill-opacity=".14"/>
+    <path d="M50 16h28l-4 14h-20z" fill="#b9a77c"/>
+    <path d="M64 16h14l-4 14H64z" fill="#000" fill-opacity=".14"/>
+    <rect x="50" y="28" width="28" height="5" rx="2.5" fill="#fff" fill-opacity=".6"/>
+    <path d="M54 33h20c18 8 24 30 22 54-1 16-10 26-32 26S33 103 32 87c-2-24 4-46 22-54z" fill="#b9a77c"/>
+    <path d="M64 33h10c18 8 24 30 22 54-1 16-10 26-32 26z" fill="#000" fill-opacity=".14"/>
+    <rect x="42" y="62" width="44" height="28" rx="6" fill="#fff" fill-opacity=".9"/>
+    <rect x="50" y="71" width="28" height="3" rx="1.5" fill="#b9a77c"/>
+    <rect x="54" y="78" width="20" height="3" rx="1.5" fill="#b9a77c" fill-opacity=".5"/>
+</svg>

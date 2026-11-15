@@ -27,6 +27,7 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Todo /admin y todo /api, salvo la autenticación y el endpoint de salud.
-  matcher: ["/admin/:path*", "/api/((?!auth/|health/).*)"],
+  // Todo /admin y todo /api, salvo la autenticación, el endpoint de salud y
+  // las tareas programadas (se autentican con CRON_SECRET).
+  matcher: ["/admin/:path*", "/api/((?!auth/|health/|cron/).*)"],
 };

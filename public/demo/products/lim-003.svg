@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Lavavajillas 750 g">
+  <rect width="128" height="128" rx="24" fill="#22c55e" fill-opacity=".14"/>
+    <rect x="40" y="18" width="48" height="16" rx="4" fill="#22c55e"/>
+    <rect x="40" y="18" width="48" height="16" rx="4" fill="#000" fill-opacity=".14"/>
+    <rect x="36" y="34" width="56" height="78" rx="12" fill="#22c55e"/>
+    <path d="M64 34h16a12 12 0 0 1 12 12v54a12 12 0 0 1-12 12H64z" fill="#000" fill-opacity=".14"/>
+    <rect x="36" y="56" width="56" height="32" fill="#fff" fill-opacity=".9"/>
+    <rect x="46" y="66" width="36" height="3" rx="1.5" fill="#22c55e"/>
+    <rect x="46" y="73" width="22" height="3" rx="1.5" fill="#22c55e" fill-opacity=".5"/>
+    <rect x="42" y="40" width="4" height="12" rx="2" fill="#fff" fill-opacity=".28"/>
+</svg>

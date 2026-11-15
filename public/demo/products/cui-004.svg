@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Desodorante 150 ml">
+  <rect width="128" height="128" rx="24" fill="#334155" fill-opacity=".14"/>
+    <path d="M42 26a22 6 0 0 1 44 0v76a22 6 0 0 1-44 0z" fill="#334155"/>
+    <path d="M64 20a22 6 0 0 1 22 6v76a22 6 0 0 1-22 6z" fill="#000" fill-opacity=".14"/>
+    <ellipse cx="64" cy="26" rx="22" ry="6" fill="#fff" fill-opacity=".55"/>
+    <ellipse cx="64" cy="26" rx="14" ry="3.5" fill="#000" fill-opacity=".14"/>
+    <rect x="42" y="52" width="44" height="26" fill="#fff" fill-opacity=".9"/>
+    <rect x="50" y="61" width="28" height="3" rx="1.5" fill="#334155"/>
+    <rect x="50" y="67" width="18" height="3" rx="1.5" fill="#334155" fill-opacity=".5"/>
+    <rect x="47" y="34" width="4" height="62" rx="2" fill="#fff" fill-opacity=".28"/>
+</svg>

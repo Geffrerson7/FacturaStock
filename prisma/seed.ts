@@ -6,8 +6,8 @@ import { randomUUID } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 
 import { PrismaClient, type UserRole } from "../src/generated/prisma/client";
-import { WALK_IN_DNI } from "../src/lib/customer";
 import { getDemoCredentials } from "../src/lib/demo";
+import { resetDemoData } from "../src/lib/demo-data/sync";
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -100,94 +100,12 @@ async function seedUsers() {
 async function main() {
   await seedUsers();
 
-  await prisma.customer.upsert({
-    where: { dni: WALK_IN_DNI },
-    update: {},
-    create: {
-      dni: WALK_IN_DNI,
-      firstName: "Walk-in",
-      lastName: "Customer",
-      address: "N/A",
-    },
-  });
-
-  const categories = await Promise.all([
-    prisma.category.upsert({
-      where: { name: "Bebidas" },
-      update: {},
-      create: { name: "Bebidas", description: "Bebidas y refrescos" },
-    }),
-    prisma.category.upsert({
-      where: { name: "Snacks" },
-      update: {},
-      create: { name: "Snacks", description: "Botanas y aperitivos" },
-    }),
-    prisma.category.upsert({
-      where: { name: "Limpieza" },
-      update: {},
-      create: { name: "Limpieza", description: "Artículos de limpieza" },
-    }),
-  ]);
-
-  const categoryByName = new Map(
-    categories.map((category) => [category.name, category]),
-  );
-
-  const products = [
-    {
-      sku: "BEB-001",
-      name: "Agua mineral 500 ml",
-      description: "Botella de agua sin gas",
-      price: "2.50",
-      stock: 50,
-      category: "Bebidas",
-    },
-    {
-      sku: "BEB-002",
-      name: "Gaseosa 1.5 L",
-      description: "Bebida gaseosa familiar",
-      price: "6.50",
-      stock: 30,
-      category: "Bebidas",
-    },
-    {
-      sku: "SNK-001",
-      name: "Papas fritas 150 g",
-      description: "Papas fritas natural",
-      price: "3.50",
-      stock: 40,
-      category: "Snacks",
-    },
-    {
-      sku: "LIM-001",
-      name: "Detergente 1 kg",
-      description: "Detergente en polvo",
-      price: "12.90",
-      stock: 20,
-      category: "Limpieza",
-    },
-  ];
-
-  for (const product of products) {
-    const category = categoryByName.get(product.category);
-
-    if (!category) {
-      throw new Error(`Missing seed category: ${product.category}`);
-    }
-
-    await prisma.product.upsert({
-      where: { sku: product.sku },
-      update: {},
-      create: {
-        sku: product.sku,
-        name: product.name,
-        description: product.description,
-        price: product.price,
-        stock: product.stock,
-        categoryId: category.id,
-      },
-    });
-  }
+  // Catálogo de ejemplo (categorías, productos con ilustración y clientes) y
+  // ventas repartidas en las últimas semanas. Es el mismo reinicio que hace
+  // cada día la tarea programada de la demo; no toca las ventas que tienen
+  // comprobante.
+  const result = await resetDemoData(prisma);
+  console.log(`Demo data ready: ${result.salesCreated} sample sales.`);
 
   console.log("Seed completed.");
 }
