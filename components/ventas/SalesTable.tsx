@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { Button, Chip, Spinner, toast } from "@heroui/react";
-import { FiExternalLink, FiRefreshCw, FiXCircle } from "react-icons/fi";
+import Link from "next/link";
+import { Button, Spinner } from "@heroui/react";
+import { buttonVariants } from "@heroui/styles";
+import { FiExternalLink, FiPlus, FiRefreshCw, FiXCircle } from "react-icons/fi";
 
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
 import {
@@ -11,16 +13,24 @@ import {
   SearchInput,
 } from "@/components/ui/ListToolbar";
 import CancelSaleDialog from "@/components/ventas/CancelSaleDialog";
-import CreateSaleModal from "@/components/ventas/CreateSaleModal";
+import {
+  cancelSale,
+  refreshCancellation,
+  retryInvoice,
+} from "@/components/ventas/sale-actions";
+import {
+  INVOICE_STATUS,
+  InvoiceStatusChip,
+  SaleStatusChip,
+} from "@/components/ventas/SaleStatusChips";
 import { getCustomerName } from "@/src/lib/customer";
-import { formatCurrency, formatDate } from "@/src/lib/format";
+import {
+  formatCurrency,
+  formatDate,
+  formatInvoiceCode,
+} from "@/src/lib/format";
 import { usePaginatedList } from "@/src/lib/hooks/usePaginatedList";
-import type { Invoice, InvoiceStatus, Sale } from "@/src/lib/types/sale";
-
-type InvoiceResponsePayload = {
-  data?: Sale;
-  error?: { message?: string };
-};
+import type { Invoice, Sale } from "@/src/lib/types/sale";
 
 const INITIAL_FILTERS = { q: "", status: "", invoiceStatus: "" };
 
@@ -28,16 +38,6 @@ const SALE_STATUS_OPTIONS = [
   { id: "COMPLETADA", label: "Completadas" },
   { id: "ANULADA", label: "Anuladas" },
 ];
-
-const INVOICE_STATUS: Record<
-  InvoiceStatus,
-  { label: string; color: "success" | "warning" | "danger" | "default" }
-> = {
-  EMITIDO: { label: "Emitido", color: "success" },
-  PENDIENTE: { label: "Pendiente", color: "warning" },
-  ANULADO: { label: "Anulado", color: "danger" },
-  ANULACION_PENDIENTE: { label: "Anulación pendiente", color: "default" },
-};
 
 const INVOICE_STATUS_OPTIONS = Object.entries(INVOICE_STATUS).map(
   ([id, { label }]) => ({ id, label }),
@@ -50,37 +50,13 @@ function customerLabel(sale: Sale): string {
   return sale.customer ? getCustomerName(sale.customer) : "Clientes varios";
 }
 
-function invoiceCode(invoice: Invoice): string {
-  return `${invoice.series}-${String(invoice.number).padStart(8, "0")}`;
-}
-
-function SaleStatusChip({ sale }: { sale: Sale }) {
-  const isCompleted = sale.status === "COMPLETADA";
-
-  return (
-    <Chip color={isCompleted ? "success" : "danger"} size="sm" variant="soft">
-      <Chip.Label>{isCompleted ? "Completada" : "Anulada"}</Chip.Label>
-    </Chip>
-  );
-}
-
-function InvoiceStatusChip({ status }: { status: InvoiceStatus }) {
-  const { label, color } = INVOICE_STATUS[status];
-
-  return (
-    <Chip color={color} size="sm" variant="soft">
-      <Chip.Label>{label}</Chip.Label>
-    </Chip>
-  );
-}
-
 function InvoiceSummary({ invoice }: { invoice: Invoice | null }) {
   if (!invoice) return <span className="text-xs text-muted">—</span>;
 
   return (
     <div className="flex flex-col items-start gap-1">
       <span className="font-mono text-xs font-medium text-foreground">
-        {invoiceCode(invoice)}
+        {formatInvoiceCode(invoice)}
       </span>
       <div className="flex flex-wrap items-center gap-1.5">
         <InvoiceStatusChip status={invoice.status} />
@@ -140,83 +116,20 @@ export default function SalesTable() {
     if (!sale) return;
 
     setIsCancelling(true);
+    const changed = await cancelSale(sale);
+    setIsCancelling(false);
 
-    try {
-      const response = await fetch(`/api/ventas/${sale.id}/anular`, {
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        const payload = (await response
-          .json()
-          .catch(() => null)) as InvoiceResponsePayload | null;
-
-        throw new Error(
-          payload?.error?.message ?? "No se pudo anular la venta.",
-        );
-      }
-
-      toast.success("Venta anulada", {
-        description: `La venta #${sale.number} se anuló y el stock fue devuelto.`,
-      });
-
+    if (changed) {
       setIsCancelDialogOpen(false);
       reload();
-    } catch (error) {
-      toast.danger("No se pudo anular la venta", {
-        description:
-          error instanceof Error
-            ? error.message
-            : "Ocurrió un error inesperado.",
-      });
-    } finally {
-      setIsCancelling(false);
     }
   }, [saleToCancel, reload]);
 
   const handleEmitInvoice = useCallback(
     async (sale: Sale) => {
       setEmittingSaleId(sale.id);
-
-      try {
-        const response = await fetch(`/api/ventas/${sale.id}/comprobante`, {
-          method: "POST",
-        });
-        const payload = (await response
-          .json()
-          .catch(() => null)) as InvoiceResponsePayload | null;
-
-        if (!response.ok) {
-          throw new Error(
-            payload?.error?.message ?? "No se pudo emitir el comprobante.",
-          );
-        }
-
-        const updated = payload?.data;
-
-        if (updated?.invoice?.status === "EMITIDO") {
-          toast.success("Comprobante emitido", {
-            description: `Se emitió ${updated.invoice.series}-${updated.invoice.number} correctamente.`,
-          });
-        } else {
-          toast.warning("Comprobante pendiente", {
-            description:
-              updated?.invoice?.errorMessage ??
-              "Nubefact no confirmó la emisión. Revisa la configuración y reintenta.",
-          });
-        }
-
-        reload();
-      } catch (error) {
-        toast.danger("No se pudo emitir el comprobante", {
-          description:
-            error instanceof Error
-              ? error.message
-              : "Ocurrió un error inesperado.",
-        });
-      } finally {
-        setEmittingSaleId(null);
-      }
+      if (await retryInvoice(sale)) reload();
+      setEmittingSaleId(null);
     },
     [reload],
   );
@@ -224,47 +137,8 @@ export default function SalesTable() {
   const handleRefreshCancellation = useCallback(
     async (sale: Sale) => {
       setRefreshingSaleId(sale.id);
-
-      try {
-        const response = await fetch(`/api/ventas/${sale.id}/anulacion`, {
-          method: "POST",
-        });
-        const payload = (await response
-          .json()
-          .catch(() => null)) as InvoiceResponsePayload | null;
-
-        if (!response.ok) {
-          throw new Error(
-            payload?.error?.message ??
-              "No se pudo consultar el estado de la anulación.",
-          );
-        }
-
-        const invoice = payload?.data?.invoice;
-
-        if (invoice?.status === "ANULADO") {
-          toast.success("Anulación aceptada", {
-            description: `SUNAT aceptó la anulación de ${invoice.series}-${invoice.number}.`,
-          });
-        } else {
-          toast.warning("La anulación sigue pendiente", {
-            description:
-              invoice?.sunatDescription ??
-              "SUNAT todavía no procesa la anulación. Vuelve a consultar más tarde.",
-          });
-        }
-
-        reload();
-      } catch (error) {
-        toast.danger("No se pudo actualizar el estado", {
-          description:
-            error instanceof Error
-              ? error.message
-              : "Ocurrió un error inesperado.",
-        });
-      } finally {
-        setRefreshingSaleId(null);
-      }
+      if (await refreshCancellation(sale)) reload();
+      setRefreshingSaleId(null);
     },
     [reload],
   );
@@ -278,7 +152,13 @@ export default function SalesTable() {
         isPrimary: true,
         cell: (sale) => (
           <>
-            <span className="font-medium text-foreground">#{sale.number}</span>
+            <Link
+              href={`/admin/ventas/${sale.id}`}
+              className="font-medium text-link hover:underline"
+              aria-label={`Ver detalle de la venta #${sale.number}`}
+            >
+              #{sale.number}
+            </Link>
             <span className="block text-xs text-muted">
               {formatDate(sale.createdAt)}
             </span>
@@ -288,11 +168,11 @@ export default function SalesTable() {
             </span>
             <span className="mt-1.5 flex flex-wrap items-center gap-1.5 lg:hidden">
               <span className="sm:hidden">
-                <SaleStatusChip sale={sale} />
+                <SaleStatusChip status={sale.status} />
               </span>
               {sale.invoice ? (
                 <span className="font-mono text-xs text-muted">
-                  {invoiceCode(sale.invoice)}
+                  {formatInvoiceCode(sale.invoice)}
                 </span>
               ) : null}
             </span>
@@ -339,7 +219,7 @@ export default function SalesTable() {
         id: "status",
         header: "Estado",
         hideBelow: "sm",
-        cell: (sale) => <SaleStatusChip sale={sale} />,
+        cell: (sale) => <SaleStatusChip status={sale.status} />,
       },
       {
         id: "actions",
@@ -419,7 +299,13 @@ export default function SalesTable() {
               <FiRefreshCw aria-hidden />
               Actualizar
             </Button>
-            <CreateSaleModal onCreated={list.reloadFromStart} />
+            <Link
+              href="/admin/ventas/nueva"
+              className={buttonVariants({ variant: "primary" })}
+            >
+              <FiPlus aria-hidden />
+              Nueva venta
+            </Link>
           </>
         }
         summary={

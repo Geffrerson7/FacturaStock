@@ -4,18 +4,26 @@ import { prisma } from "@/src/lib/prisma";
 import { searchTokens } from "@/src/lib/validations/list";
 import type { ListProductsQuery } from "@/src/lib/validations/product";
 
+/**
+ * Productos con stock bajo: el stock se compara con el umbral de la misma
+ * fila, así que el filtro va a la base en vez de calcularse en memoria.
+ */
+export function lowStockWhere(): Prisma.ProductWhereInput {
+  return { stock: { lte: prisma.product.fields.lowStockThreshold } };
+}
+
 export function buildProductWhere({
   q,
   categoryId,
   isActive,
-}: Pick<
-  ListProductsQuery,
-  "q" | "categoryId" | "isActive"
->): Prisma.ProductWhereInput {
+  lowStock,
+}: Pick<ListProductsQuery, "q" | "categoryId" | "isActive"> &
+  Partial<Pick<ListProductsQuery, "lowStock">>): Prisma.ProductWhereInput {
   return {
     AND: [
       ...(categoryId ? [{ categoryId }] : []),
       ...(isActive === undefined ? [] : [{ isActive }]),
+      ...(lowStock ? [lowStockWhere()] : []),
       ...searchTokens(q).map((token) => ({
         OR: [
           { name: { contains: token, mode: "insensitive" as const } },

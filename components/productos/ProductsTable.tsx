@@ -13,6 +13,7 @@ import {
   ListToolbar,
   SearchInput,
 } from "@/components/ui/ListToolbar";
+import StockLevelChip from "@/components/productos/StockLevelChip";
 import { formatCurrency } from "@/src/lib/format";
 import { usePaginatedList } from "@/src/lib/hooks/usePaginatedList";
 import type {
@@ -21,12 +22,14 @@ import type {
 } from "@/src/lib/types/category";
 import type { Product } from "@/src/lib/types/product";
 
-const INITIAL_FILTERS = { q: "", categoryId: "", isActive: "" };
+const INITIAL_FILTERS = { q: "", categoryId: "", isActive: "", lowStock: "" };
 
 const STATUS_OPTIONS = [
   { id: "true", label: "Activos" },
   { id: "false", label: "Inactivos" },
 ];
+
+const STOCK_OPTIONS = [{ id: "true", label: "Solo stock bajo" }];
 
 function StatusChip({ isActive }: { isActive: boolean }) {
   return (
@@ -144,11 +147,11 @@ export default function ProductsTable() {
               </span>
               <span className="block text-xs text-muted">{product.sku}</span>
               <span className="tabular mt-1 block text-xs text-muted sm:hidden">
-                {formatCurrency(product.price)} ·{" "}
-                <span className={product.stock === 0 ? "text-danger" : ""}>
-                  Stock: {product.stock}
-                </span>
+                {formatCurrency(product.price)} · Stock: {product.stock}
                 {product.isActive ? "" : " · Inactivo"}
+              </span>
+              <span className="mt-1 block sm:hidden">
+                <StockLevelChip product={product} />
               </span>
             </div>
           </div>
@@ -177,10 +180,9 @@ export default function ProductsTable() {
         hideBelow: "sm",
         align: "end",
         cell: (product) => (
-          <span
-            className={`tabular ${product.stock === 0 ? "font-medium text-danger" : ""}`}
-          >
-            {product.stock}
+          <span className="inline-flex flex-col items-end gap-1">
+            <span className="tabular">{product.stock}</span>
+            <StockLevelChip product={product} />
           </span>
         ),
       },
@@ -264,6 +266,13 @@ export default function ProductsTable() {
           value={list.filters.isActive}
           options={STATUS_OPTIONS}
           onChange={(value) => setFilter("isActive", value)}
+        />
+        <FilterSelect
+          label="Stock"
+          allLabel="Todo el stock"
+          value={list.filters.lowStock}
+          options={STOCK_OPTIONS}
+          onChange={(value) => setFilter("lowStock", value)}
         />
       </ListToolbar>
 

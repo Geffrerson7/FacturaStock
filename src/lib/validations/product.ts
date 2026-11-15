@@ -8,6 +8,9 @@ import {
   sortQuery,
 } from "./list";
 
+/** Igual que el valor por defecto de la columna `low_stock_threshold`. */
+export const DEFAULT_LOW_STOCK_THRESHOLD = 5;
+
 export const productIdSchema = z.uuid(
   "El identificador del producto no es válido.",
 );
@@ -75,6 +78,12 @@ export const createProductSchema = z.object({
     .int("El stock debe ser un número entero.")
     .min(0, "El stock no puede ser negativo.")
     .max(1000000, "El stock es demasiado alto."),
+  lowStockThreshold: z.coerce
+    .number("El umbral de stock bajo debe ser un número válido.")
+    .int("El umbral de stock bajo debe ser un número entero.")
+    .min(0, "El umbral de stock bajo no puede ser negativo.")
+    .max(1000000, "El umbral de stock bajo es demasiado alto.")
+    .default(DEFAULT_LOW_STOCK_THRESHOLD),
   categoryId: z.uuid("Selecciona una categoría válida."),
   isActive: z.boolean("El estado debe ser verdadero o falso.").default(true),
   imageUrl: optionalImageUrl,
@@ -99,6 +108,7 @@ export const listProductsQuerySchema = z.object({
     z.uuid("El identificador de la categoría no es válido.").optional(),
   ),
   isActive: optionalBoolean("El filtro isActive debe ser true o false."),
+  lowStock: optionalBoolean("El filtro lowStock debe ser true o false."),
   ...sortQuery(PRODUCT_SORT_FIELDS, { sort: "createdAt", order: "desc" }),
 });
 
