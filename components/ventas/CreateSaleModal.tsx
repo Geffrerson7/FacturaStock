@@ -16,7 +16,6 @@ export default function CreateSaleModal({ onCreated }: CreateSaleModalProps) {
   return (
     <Modal state={state}>
       <Button
-        className="bg-black text-white"
         variant="primary"
         onPress={state.open}
       >

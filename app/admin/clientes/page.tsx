@@ -1,15 +1,20 @@
+import type { Metadata } from "next";
+
 import CustomersTable from "@/components/clientes/CustomersTable";
+import PageHeader from "@/components/ui/PageHeader";
+
+export const metadata: Metadata = {
+  title: "Clientes",
+};
 
 export default function ClientesPage() {
   return (
-    <main className="flex-1 p-8">
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold">Clientes</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Administra los clientes registrados en tu tienda.
-        </p>
-      </div>
+    <>
+      <PageHeader
+        title="Clientes"
+        description="Administra los clientes registrados en tu tienda."
+      />
       <CustomersTable />
-    </main>
+    </>
   );
 }

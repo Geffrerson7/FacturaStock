@@ -1,2 +1,71 @@
 @import "tailwindcss";
-@import "@heroui/styles"; 
+@import "@heroui/styles";
+
+/*
+ * Sistema de diseño de FacturaStock
+ * ---------------------------------
+ * Todos los colores, radios y sombras de la aplicación salen de aquí. Los
+ * componentes usan solo las utilidades semánticas que generan estas variables
+ * (`bg-accent`, `text-muted`, `border-border`, `bg-danger-soft`...), nunca
+ * colores de la paleta de Tailwind ni hexadecimales.
+ *
+ *   Marca      accent, accent-soft, brand, brand-strong
+ *   Neutros    background, surface, surface-secondary, default, foreground,
+ *              muted, border, separator
+ *   Estado     success, warning, danger (y sus variantes -soft)
+ *   Radios     rounded-lg (controles), rounded-xl (tarjetas), rounded-2xl
+ *   Sombras    shadow-surface (tarjetas), shadow-overlay (menús y modales)
+ *   Tipografía text-xs (ayuda), text-sm (cuerpo), text-base, text-lg
+ *              (subtítulos), text-2xl (título de página)
+ *
+ * HeroUI declara sus variables dentro de `@layer`, así que las de este archivo
+ * (sin capa) siempre ganan. Por eso todo lo que se redefine en `:root` tiene
+ * también su valor para el tema oscuro.
+ */
+
+:root {
+  /* Marca: el azul índigo de la pantalla de acceso. */
+  --brand: oklch(0.4852 0.2564 274.72);
+  --brand-strong: oklch(0.3149 0.184 272.45);
+
+  --accent: var(--brand);
+  --accent-foreground: var(--snow);
+  --link: var(--brand);
+
+  /* Neutros con un matiz frío, a juego con la marca. */
+  --background: oklch(0.975 0.004 275);
+  --border: oklch(0.905 0.008 275);
+
+  --radius: 0.625rem;
+}
+
+.dark,
+[data-theme="dark"] {
+  /* Sobre fondo oscuro la marca necesita más luminosidad para leerse. */
+  --accent: oklch(0.62 0.21 274.72);
+  --accent-foreground: var(--snow);
+  --link: oklch(0.76 0.14 274.72);
+
+  --background: oklch(0.155 0.012 275);
+  --border: oklch(0.3 0.012 275);
+}
+
+@theme inline {
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+
+  --font-sans:
+    var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+
+  /* Los importes y cantidades se alinean mejor con cifras de ancho fijo. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}

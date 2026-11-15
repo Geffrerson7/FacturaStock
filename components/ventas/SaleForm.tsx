@@ -158,13 +158,13 @@ export default function SaleForm({ onSuccess }: SaleFormProps) {
       <div className="flex flex-col gap-2">
         {customer ? (
           <>
-            <p className="text-sm font-medium text-slate-700">Cliente</p>
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3">
+            <p className="text-sm font-medium text-foreground">Cliente</p>
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-slate-900">
+                <p className="truncate text-sm font-medium text-foreground">
                   {getCustomerName(customer)}
                 </p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-muted">
                   {getCustomerDocumentLabel(customer)} ·{" "}
                   {customer.documentType === "RUC" ? "Factura" : "Boleta"}
                 </p>
@@ -190,10 +190,10 @@ export default function SaleForm({ onSuccess }: SaleFormProps) {
               getKey={(item) => item.id}
               renderItem={(item) => (
                 <>
-                  <span className="font-medium text-slate-900">
+                  <span className="font-medium text-foreground">
                     {getCustomerName(item)}
                   </span>
-                  <span className="text-slate-500">
+                  <span className="text-muted">
                     {" "}
                     · {getCustomerDocumentLabel(item)}
                   </span>
@@ -201,7 +201,7 @@ export default function SaleForm({ onSuccess }: SaleFormProps) {
               )}
               onSelect={setCustomer}
             />
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted">
               Sin cliente seleccionado, la venta se registra sin cliente y se
               emite una boleta a «Clientes varios».
             </p>
@@ -219,8 +219,8 @@ export default function SaleForm({ onSuccess }: SaleFormProps) {
           isItemDisabled={(item) => item.stock === 0}
           renderItem={(item) => (
             <>
-              <span className="font-medium text-slate-900">{item.name}</span>
-              <span className="text-slate-500">
+              <span className="font-medium text-foreground">{item.name}</span>
+              <span className="text-muted">
                 {" "}
                 · {item.sku} · {formatCurrency(item.price)} ·{" "}
                 {item.stock === 0 ? "Sin stock" : `Stock: ${item.stock}`}
@@ -231,24 +231,24 @@ export default function SaleForm({ onSuccess }: SaleFormProps) {
         />
 
         {lines.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500">
+          <p className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted">
             Todavía no agregaste productos a la venta.
           </p>
         ) : (
           lines.map((line) => (
             <div
               key={line.product.id}
-              className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 p-3 sm:grid-cols-[1fr_auto_auto]"
+              className="grid grid-cols-1 gap-3 rounded-xl border border-border p-3 sm:grid-cols-[1fr_auto_auto]"
             >
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-slate-900">
+                <p className="truncate text-sm font-medium text-foreground">
                   {line.product.name}
                 </p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-muted">
                   Precio unitario: {formatCurrency(line.product.price)} · Stock
                   disponible: {line.product.stock}
                 </p>
-                <p className="text-xs text-slate-700">
+                <p className="text-xs text-foreground">
                   Subtotal:{" "}
                   {formatCurrency(Number(line.product.price) * line.quantity)}
                 </p>
@@ -291,20 +291,20 @@ export default function SaleForm({ onSuccess }: SaleFormProps) {
         )}
       </div>
 
-      <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
-        <span className="text-sm text-slate-600">Total (IGV incluido)</span>
-        <span className="text-lg font-semibold text-slate-900">
+      <div className="flex items-center justify-between rounded-xl bg-surface-secondary px-4 py-3">
+        <span className="text-sm text-muted">Total (IGV incluido)</span>
+        <span className="text-lg font-semibold text-foreground">
           {formatCurrency(total)}
         </span>
       </div>
 
       {errorMessage ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-soft-foreground">
           {errorMessage}
         </p>
       ) : null}
 
-      <Button type="submit" className="w-full bg-black" isPending={isSubmitting}>
+      <Button type="submit" fullWidth isPending={isSubmitting}>
         {isSubmitting ? "Registrando..." : "Registrar venta"}
       </Button>
     </Form>

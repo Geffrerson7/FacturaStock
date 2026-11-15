@@ -40,22 +40,22 @@ export default function DeleteProductDialog({
               <Modal.Heading>Eliminar producto</Modal.Heading>
             </Modal.Header>
 
-            <Modal.Body className="flex flex-col gap-3 text-sm text-slate-600">
+            <Modal.Body className="flex flex-col gap-3 text-sm text-muted">
               <p>
                 ¿Seguro que deseas eliminar{" "}
-                <span className="font-medium text-slate-900">
+                <span className="font-medium text-foreground">
                   {product?.name}
                 </span>
                 ?
               </p>
               <p>
                 SKU:{" "}
-                <span className="font-medium text-slate-900">
+                <span className="font-medium text-foreground">
                   {product?.sku}
                 </span>{" "}
                 · Precio: {product ? formatCurrency(product.price) : "—"}
               </p>
-              <p className="text-red-600">
+              <p className="text-danger">
                 Esta acción no se puede deshacer. Las ventas ya registradas
                 conservan su historial.
               </p>

@@ -379,7 +379,7 @@ export default function ProductForm({
             <NumberField.IncrementButton />
           </NumberField.Group>
           {errors.price ? (
-            <p className="text-sm text-red-600">{errors.price}</p>
+            <p className="text-sm text-danger">{errors.price}</p>
           ) : null}
         </NumberField>
 
@@ -398,7 +398,7 @@ export default function ProductForm({
             <NumberField.IncrementButton />
           </NumberField.Group>
           {errors.stock ? (
-            <p className="text-sm text-red-600">{errors.stock}</p>
+            <p className="text-sm text-danger">{errors.stock}</p>
           ) : null}
         </NumberField>
       </div>
@@ -431,7 +431,7 @@ export default function ProductForm({
           </Select.Popover>
         </Select>
         {errors.categoryId ? (
-          <p className="text-sm text-red-600">{errors.categoryId}</p>
+          <p className="text-sm text-danger">{errors.categoryId}</p>
         ) : null}
       </div>
 
@@ -445,8 +445,8 @@ export default function ProductForm({
           onDrop={handleDrop}
           className={`flex flex-col gap-3 rounded-xl border border-dashed p-3 transition-colors ${
             isDragging
-              ? "border-slate-900 bg-slate-100"
-              : "border-slate-300 bg-transparent"
+              ? "border-accent bg-accent-soft"
+              : "border-border bg-transparent"
           }`}
         >
           <div className="flex items-center gap-4">
@@ -523,7 +523,7 @@ export default function ProductForm({
             </Button>
           </div>
 
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-muted">
             Arrastra una imagen aquí, elige un archivo o pega una URL. JPG, PNG
             o WebP de hasta 5 MB. La imagen se sube a Cloudinary y se guarda al
             registrar el producto.
@@ -540,7 +540,7 @@ export default function ProductForm({
         </Switch.Content>
       </Switch>
 
-      <Button type="submit" className="w-full bg-black" isPending={isSubmitting}>
+      <Button type="submit" fullWidth isPending={isSubmitting}>
         {isSubmitting
           ? product
             ? "Guardando..."

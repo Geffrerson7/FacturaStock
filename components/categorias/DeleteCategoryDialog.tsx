@@ -41,23 +41,23 @@ export default function DeleteCategoryDialog({
               <Modal.Heading>Eliminar categoría</Modal.Heading>
             </Modal.Header>
 
-            <Modal.Body className="flex flex-col gap-3 text-sm text-slate-600">
+            <Modal.Body className="flex flex-col gap-3 text-sm text-muted">
               <p>
                 ¿Seguro que deseas eliminar{" "}
-                <span className="font-medium text-slate-900">
+                <span className="font-medium text-foreground">
                   {category?.name ?? ""}
                 </span>
                 ?
               </p>
 
               {hasProducts ? (
-                <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800">
+                <p className="rounded-lg bg-warning-soft p-3 text-warning-soft-foreground">
                   Esta categoría tiene {category?.productCount}{" "}
                   {category?.productCount === 1 ? "producto asignado" : "productos asignados"}
                   . Reasígnalos a otra categoría antes de eliminarla.
                 </p>
               ) : (
-                <p className="text-red-600">
+                <p className="text-danger">
                   Esta acción no se puede deshacer.
                 </p>
               )}

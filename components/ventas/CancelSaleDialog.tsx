@@ -40,21 +40,21 @@ export default function CancelSaleDialog({
               <Modal.Heading>Anular venta</Modal.Heading>
             </Modal.Header>
 
-            <Modal.Body className="flex flex-col gap-3 text-sm text-slate-600">
+            <Modal.Body className="flex flex-col gap-3 text-sm text-muted">
               <p>
                 ¿Seguro que deseas anular la venta{" "}
-                <span className="font-medium text-slate-900">
+                <span className="font-medium text-foreground">
                   #{sale?.number}
                 </span>
                 ?
               </p>
               <p>
                 Total:{" "}
-                <span className="font-medium text-slate-900">
+                <span className="font-medium text-foreground">
                   {sale ? formatCurrency(sale.total) : "—"}
                 </span>
               </p>
-              <p className="text-red-600">
+              <p className="text-danger">
                 El stock de los productos volverá al inventario y la venta
                 quedará marcada como anulada. Si el comprobante ya fue emitido,
                 también se anulará en SUNAT a través de Nubefact.

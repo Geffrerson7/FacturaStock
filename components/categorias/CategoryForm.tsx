@@ -160,7 +160,7 @@ export default function CategoryForm({
 
       <Button
         type="submit"
-        className="w-full bg-black"
+        fullWidth
         isPending={isSubmitting}
       >
         {isSubmitting

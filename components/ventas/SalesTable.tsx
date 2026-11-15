@@ -1,105 +1,132 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import {
-  Button,
-  Chip,
-  Pagination,
-  Spinner,
-  Table,
-  toast,
-} from "@heroui/react";
+import { useCallback, useMemo, useState } from "react";
+import { Button, Chip, Spinner, toast } from "@heroui/react";
 import { FiExternalLink, FiRefreshCw, FiXCircle } from "react-icons/fi";
 
+import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
+import {
+  FilterSelect,
+  ListToolbar,
+  SearchInput,
+} from "@/components/ui/ListToolbar";
 import CancelSaleDialog from "@/components/ventas/CancelSaleDialog";
 import CreateSaleModal from "@/components/ventas/CreateSaleModal";
-import { formatCurrency, formatDate } from "@/src/lib/format";
 import { getCustomerName } from "@/src/lib/customer";
-import type { PaginationMeta } from "@/src/lib/types/pagination";
-import type {
-  InvoiceStatus,
-  Sale,
-  SalesPageResponse,
-} from "@/src/lib/types/sale";
+import { formatCurrency, formatDate } from "@/src/lib/format";
+import { usePaginatedList } from "@/src/lib/hooks/usePaginatedList";
+import type { Invoice, InvoiceStatus, Sale } from "@/src/lib/types/sale";
 
-const PAGE_SIZE = 10;
-const PAGE_WINDOW = 1;
-
-type LoadStatus = "loading" | "success" | "error";
-
-type ErrorPayload = {
+type InvoiceResponsePayload = {
+  data?: Sale;
   error?: { message?: string };
 };
 
-type InvoiceResponsePayload = ErrorPayload & { data?: Sale };
+const INITIAL_FILTERS = { q: "", status: "", invoiceStatus: "" };
 
-function invoiceStatusLabel(status: InvoiceStatus): string {
-  switch (status) {
-    case "EMITIDO":
-      return "Emitido";
-    case "PENDIENTE":
-      return "Pendiente";
-    case "ANULADO":
-      return "Anulado";
-    case "ANULACION_PENDIENTE":
-      return "Anulación pendiente";
-  }
-}
+const SALE_STATUS_OPTIONS = [
+  { id: "COMPLETADA", label: "Completadas" },
+  { id: "ANULADA", label: "Anuladas" },
+];
 
-function invoiceStatusColor(
-  status: InvoiceStatus,
-): "success" | "warning" | "danger" | "default" {
-  switch (status) {
-    case "EMITIDO":
-      return "success";
-    case "PENDIENTE":
-      return "warning";
-    case "ANULADO":
-      return "danger";
-    case "ANULACION_PENDIENTE":
-      return "default";
-  }
-}
-
-const EMPTY_PAGINATION: PaginationMeta = {
-  page: 1,
-  pageSize: PAGE_SIZE,
-  total: 0,
-  totalPages: 0,
-  hasNextPage: false,
-  hasPreviousPage: false,
+const INVOICE_STATUS: Record<
+  InvoiceStatus,
+  { label: string; color: "success" | "warning" | "danger" | "default" }
+> = {
+  EMITIDO: { label: "Emitido", color: "success" },
+  PENDIENTE: { label: "Pendiente", color: "warning" },
+  ANULADO: { label: "Anulado", color: "danger" },
+  ANULACION_PENDIENTE: { label: "Anulación pendiente", color: "default" },
 };
 
-function getPageItems(current: number, total: number): (number | "ellipsis")[] {
-  if (total <= 7) {
-    return Array.from({ length: total }, (_, index) => index + 1);
-  }
+const INVOICE_STATUS_OPTIONS = Object.entries(INVOICE_STATUS).map(
+  ([id, { label }]) => ({ id, label }),
+);
 
-  const start = Math.max(2, current - PAGE_WINDOW);
-  const end = Math.min(total - 1, current + PAGE_WINDOW);
-  const items: (number | "ellipsis")[] = [1];
+const FILE_LINK_CLASS =
+  "inline-flex items-center gap-0.5 text-xs font-medium text-link hover:underline";
 
-  if (start > 2) items.push("ellipsis");
+function customerLabel(sale: Sale): string {
+  return sale.customer ? getCustomerName(sale.customer) : "Clientes varios";
+}
 
-  for (let pageNumber = start; pageNumber <= end; pageNumber += 1) {
-    items.push(pageNumber);
-  }
+function invoiceCode(invoice: Invoice): string {
+  return `${invoice.series}-${String(invoice.number).padStart(8, "0")}`;
+}
 
-  if (end < total - 1) items.push("ellipsis");
+function SaleStatusChip({ sale }: { sale: Sale }) {
+  const isCompleted = sale.status === "COMPLETADA";
 
-  items.push(total);
+  return (
+    <Chip color={isCompleted ? "success" : "danger"} size="sm" variant="soft">
+      <Chip.Label>{isCompleted ? "Completada" : "Anulada"}</Chip.Label>
+    </Chip>
+  );
+}
 
-  return items;
+function InvoiceStatusChip({ status }: { status: InvoiceStatus }) {
+  const { label, color } = INVOICE_STATUS[status];
+
+  return (
+    <Chip color={color} size="sm" variant="soft">
+      <Chip.Label>{label}</Chip.Label>
+    </Chip>
+  );
+}
+
+function InvoiceSummary({ invoice }: { invoice: Invoice | null }) {
+  if (!invoice) return <span className="text-xs text-muted">—</span>;
+
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <span className="font-mono text-xs font-medium text-foreground">
+        {invoiceCode(invoice)}
+      </span>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <InvoiceStatusChip status={invoice.status} />
+        {invoice.pdfUrl ? (
+          <a
+            className={FILE_LINK_CLASS}
+            href={invoice.pdfUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            PDF
+            <FiExternalLink aria-hidden />
+          </a>
+        ) : null}
+        {invoice.xmlUrl ? (
+          <a
+            className={FILE_LINK_CLASS}
+            href={invoice.xmlUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            XML
+            <FiExternalLink aria-hidden />
+          </a>
+        ) : null}
+      </div>
+      {invoice.status === "PENDIENTE" && invoice.errorMessage ? (
+        <span
+          className="max-w-56 truncate text-xs text-danger"
+          title={invoice.errorMessage}
+        >
+          {invoice.errorMessage}
+        </span>
+      ) : null}
+    </div>
+  );
 }
 
 export default function SalesTable() {
-  const [sales, setSales] = useState<Sale[]>([]);
-  const [pagination, setPagination] =
-    useState<PaginationMeta>(EMPTY_PAGINATION);
-  const [page, setPage] = useState(1);
-  const [reloadToken, setReloadToken] = useState(0);
-  const [status, setStatus] = useState<LoadStatus>("loading");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const list = usePaginatedList<Sale, typeof INITIAL_FILTERS>({
+    endpoint: "/api/ventas",
+    initialFilters: INITIAL_FILTERS,
+    loadErrorMessage: "No se pudieron cargar las ventas.",
+  });
+  const { reload, setFilter } = list;
+
   const [saleToCancel, setSaleToCancel] = useState<Sale | null>(null);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -107,66 +134,6 @@ export default function SalesTable() {
   const [refreshingSaleId, setRefreshingSaleId] = useState<string | null>(
     null,
   );
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function loadData() {
-      setStatus("loading");
-      setErrorMessage(null);
-
-      try {
-        const salesResponse = await fetch(
-          `/api/ventas?page=${page}&pageSize=${PAGE_SIZE}`,
-          { cache: "no-store", signal: controller.signal },
-        );
-
-        const salesPayload = (await salesResponse.json().catch(() => null)) as
-          | (SalesPageResponse & ErrorPayload)
-          | null;
-
-        if (!salesResponse.ok) {
-          throw new Error(
-            salesPayload?.error?.message ?? "No se pudieron cargar las ventas.",
-          );
-        }
-
-        if (!salesPayload) {
-          throw new Error("El servidor devolvió una respuesta inválida.");
-        }
-
-        setSales(salesPayload.data);
-        setPagination(salesPayload.pagination);
-        setStatus("success");
-      } catch (error) {
-        if (controller.signal.aborted) return;
-
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Ocurrió un error inesperado.",
-        );
-        setStatus("error");
-      }
-    }
-
-    void loadData();
-
-    return () => controller.abort();
-  }, [page, reloadToken]);
-
-  const reload = useCallback(() => {
-    setReloadToken((token) => token + 1);
-  }, []);
-
-  const handleCreated = useCallback(() => {
-    setPage(1);
-    setReloadToken((token) => token + 1);
-  }, []);
-
-  const retry = useCallback(() => {
-    setReloadToken((token) => token + 1);
-  }, []);
 
   const handleCancelSale = useCallback(async () => {
     const sale = saleToCancel;
@@ -182,7 +149,7 @@ export default function SalesTable() {
       if (!response.ok) {
         const payload = (await response
           .json()
-          .catch(() => null)) as ErrorPayload | null;
+          .catch(() => null)) as InvoiceResponsePayload | null;
 
         throw new Error(
           payload?.error?.message ?? "No se pudo anular la venta.",
@@ -194,7 +161,7 @@ export default function SalesTable() {
       });
 
       setIsCancelDialogOpen(false);
-      setReloadToken((token) => token + 1);
+      reload();
     } catch (error) {
       toast.danger("No se pudo anular la venta", {
         description:
@@ -205,366 +172,302 @@ export default function SalesTable() {
     } finally {
       setIsCancelling(false);
     }
-  }, [saleToCancel]);
+  }, [saleToCancel, reload]);
 
-  const handleEmitInvoice = useCallback(async (sale: Sale) => {
-    setEmittingSaleId(sale.id);
+  const handleEmitInvoice = useCallback(
+    async (sale: Sale) => {
+      setEmittingSaleId(sale.id);
 
-    try {
-      const response = await fetch(`/api/ventas/${sale.id}/comprobante`, {
-        method: "POST",
-      });
-      const payload = (await response
-        .json()
-        .catch(() => null)) as InvoiceResponsePayload | null;
-
-      if (!response.ok) {
-        throw new Error(
-          payload?.error?.message ?? "No se pudo emitir el comprobante.",
-        );
-      }
-
-      const updated = payload?.data;
-
-      if (updated?.invoice?.status === "EMITIDO") {
-        toast.success("Comprobante emitido", {
-          description: `Se emitió ${updated.invoice.series}-${updated.invoice.number} correctamente.`,
+      try {
+        const response = await fetch(`/api/ventas/${sale.id}/comprobante`, {
+          method: "POST",
         });
-      } else {
-        toast.warning("Comprobante pendiente", {
+        const payload = (await response
+          .json()
+          .catch(() => null)) as InvoiceResponsePayload | null;
+
+        if (!response.ok) {
+          throw new Error(
+            payload?.error?.message ?? "No se pudo emitir el comprobante.",
+          );
+        }
+
+        const updated = payload?.data;
+
+        if (updated?.invoice?.status === "EMITIDO") {
+          toast.success("Comprobante emitido", {
+            description: `Se emitió ${updated.invoice.series}-${updated.invoice.number} correctamente.`,
+          });
+        } else {
+          toast.warning("Comprobante pendiente", {
+            description:
+              updated?.invoice?.errorMessage ??
+              "Nubefact no confirmó la emisión. Revisa la configuración y reintenta.",
+          });
+        }
+
+        reload();
+      } catch (error) {
+        toast.danger("No se pudo emitir el comprobante", {
           description:
-            updated?.invoice?.errorMessage ??
-            "Nubefact no confirmó la emisión. Revisa la configuración y reintenta.",
+            error instanceof Error
+              ? error.message
+              : "Ocurrió un error inesperado.",
         });
+      } finally {
+        setEmittingSaleId(null);
       }
+    },
+    [reload],
+  );
 
-      setReloadToken((token) => token + 1);
-    } catch (error) {
-      toast.danger("No se pudo emitir el comprobante", {
-        description:
-          error instanceof Error
-            ? error.message
-            : "Ocurrió un error inesperado.",
-      });
-    } finally {
-      setEmittingSaleId(null);
-    }
-  }, []);
+  const handleRefreshCancellation = useCallback(
+    async (sale: Sale) => {
+      setRefreshingSaleId(sale.id);
 
-  const handleRefreshCancellation = useCallback(async (sale: Sale) => {
-    setRefreshingSaleId(sale.id);
-
-    try {
-      const response = await fetch(`/api/ventas/${sale.id}/anulacion`, {
-        method: "POST",
-      });
-      const payload = (await response
-        .json()
-        .catch(() => null)) as InvoiceResponsePayload | null;
-
-      if (!response.ok) {
-        throw new Error(
-          payload?.error?.message ??
-            "No se pudo consultar el estado de la anulación.",
-        );
-      }
-
-      const invoice = payload?.data?.invoice;
-
-      if (invoice?.status === "ANULADO") {
-        toast.success("Anulación aceptada", {
-          description: `SUNAT aceptó la anulación de ${invoice.series}-${invoice.number}.`,
+      try {
+        const response = await fetch(`/api/ventas/${sale.id}/anulacion`, {
+          method: "POST",
         });
-      } else {
-        toast.warning("La anulación sigue pendiente", {
+        const payload = (await response
+          .json()
+          .catch(() => null)) as InvoiceResponsePayload | null;
+
+        if (!response.ok) {
+          throw new Error(
+            payload?.error?.message ??
+              "No se pudo consultar el estado de la anulación.",
+          );
+        }
+
+        const invoice = payload?.data?.invoice;
+
+        if (invoice?.status === "ANULADO") {
+          toast.success("Anulación aceptada", {
+            description: `SUNAT aceptó la anulación de ${invoice.series}-${invoice.number}.`,
+          });
+        } else {
+          toast.warning("La anulación sigue pendiente", {
+            description:
+              invoice?.sunatDescription ??
+              "SUNAT todavía no procesa la anulación. Vuelve a consultar más tarde.",
+          });
+        }
+
+        reload();
+      } catch (error) {
+        toast.danger("No se pudo actualizar el estado", {
           description:
-            invoice?.sunatDescription ??
-            "SUNAT todavía no procesa la anulación. Vuelve a consultar más tarde.",
+            error instanceof Error
+              ? error.message
+              : "Ocurrió un error inesperado.",
         });
+      } finally {
+        setRefreshingSaleId(null);
       }
+    },
+    [reload],
+  );
 
-      setReloadToken((token) => token + 1);
-    } catch (error) {
-      toast.danger("No se pudo actualizar el estado", {
-        description:
-          error instanceof Error
-            ? error.message
-            : "Ocurrió un error inesperado.",
-      });
-    } finally {
-      setRefreshingSaleId(null);
-    }
-  }, []);
+  const columns = useMemo<DataTableColumn<Sale>[]>(
+    () => [
+      {
+        id: "sale",
+        header: "Venta",
+        isRowHeader: true,
+        isPrimary: true,
+        cell: (sale) => (
+          <>
+            <span className="font-medium text-foreground">#{sale.number}</span>
+            <span className="block text-xs text-muted">
+              {formatDate(sale.createdAt)}
+            </span>
+            {/* En pantallas estrechas el resto de columnas se resume aquí. */}
+            <span className="mt-1 block text-xs text-muted md:hidden">
+              {customerLabel(sale)}
+            </span>
+            <span className="mt-1.5 flex flex-wrap items-center gap-1.5 lg:hidden">
+              <span className="sm:hidden">
+                <SaleStatusChip sale={sale} />
+              </span>
+              {sale.invoice ? (
+                <span className="font-mono text-xs text-muted">
+                  {invoiceCode(sale.invoice)}
+                </span>
+              ) : null}
+            </span>
+          </>
+        ),
+      },
+      {
+        id: "customer",
+        header: "Cliente",
+        hideBelow: "md",
+        cell: (sale) => customerLabel(sale),
+      },
+      {
+        id: "items",
+        header: "Productos",
+        hideBelow: "xl",
+        cell: (sale) => (
+          <div className="flex flex-col gap-0.5">
+            {sale.items.map((item) => (
+              <span key={item.id}>
+                {item.quantity}× {item.productName}
+              </span>
+            ))}
+          </div>
+        ),
+      },
+      {
+        id: "total",
+        header: "Total",
+        align: "end",
+        cell: (sale) => (
+          <span className="tabular whitespace-nowrap font-medium text-foreground">
+            {formatCurrency(sale.total)}
+          </span>
+        ),
+      },
+      {
+        id: "invoice",
+        header: "Comprobante",
+        hideBelow: "lg",
+        cell: (sale) => <InvoiceSummary invoice={sale.invoice} />,
+      },
+      {
+        id: "status",
+        header: "Estado",
+        hideBelow: "sm",
+        cell: (sale) => <SaleStatusChip sale={sale} />,
+      },
+      {
+        id: "actions",
+        header: "Acciones",
+        align: "center",
+        cell: (sale) => (
+          <div className="flex items-center justify-center gap-1">
+            {sale.status === "COMPLETADA" ? (
+              <>
+                {sale.invoice?.status === "PENDIENTE" ? (
+                  <Button
+                    isIconOnly
+                    size="sm"
+                    variant="ghost"
+                    aria-label={`Reintentar comprobante de venta #${sale.number}`}
+                    isDisabled={emittingSaleId === sale.id}
+                    onPress={() => void handleEmitInvoice(sale)}
+                  >
+                    {emittingSaleId === sale.id ? (
+                      <Spinner size="sm" color="current" />
+                    ) : (
+                      <FiRefreshCw aria-hidden />
+                    )}
+                  </Button>
+                ) : null}
+                <Button
+                  isIconOnly
+                  size="sm"
+                  variant="ghost"
+                  aria-label={`Anular venta #${sale.number}`}
+                  onPress={() => {
+                    setSaleToCancel(sale);
+                    setIsCancelDialogOpen(true);
+                  }}
+                >
+                  <FiXCircle aria-hidden />
+                </Button>
+              </>
+            ) : sale.invoice?.status === "ANULACION_PENDIENTE" ? (
+              <Button
+                isIconOnly
+                size="sm"
+                variant="ghost"
+                aria-label={`Actualizar estado de la anulación de la venta #${sale.number}`}
+                isDisabled={refreshingSaleId === sale.id}
+                onPress={() => void handleRefreshCancellation(sale)}
+              >
+                {refreshingSaleId === sale.id ? (
+                  <Spinner size="sm" color="current" />
+                ) : (
+                  <FiRefreshCw aria-hidden />
+                )}
+              </Button>
+            ) : (
+              <span className="text-xs text-muted">—</span>
+            )}
+          </div>
+        ),
+      },
+    ],
+    [
+      emittingSaleId,
+      refreshingSaleId,
+      handleEmitInvoice,
+      handleRefreshCancellation,
+    ],
+  );
 
-  const total = pagination.total;
-  const totalPages = pagination.totalPages;
-  const start = total === 0 ? 0 : (page - 1) * pagination.pageSize + 1;
-  const end = Math.min(page * pagination.pageSize, total);
+  const total = list.pagination.total;
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-slate-500">
-          {status === "success"
-            ? `${total} ${total === 1 ? "venta registrada" : "ventas registradas"}`
-            : "Cargando ventas..."}
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onPress={reload}>
-            <FiRefreshCw aria-hidden />
-            Actualizar
-          </Button>
-          <CreateSaleModal onCreated={handleCreated} />
-        </div>
-      </div>
+      <ListToolbar
+        actions={
+          <>
+            <Button variant="outline" onPress={reload}>
+              <FiRefreshCw aria-hidden />
+              Actualizar
+            </Button>
+            <CreateSaleModal onCreated={list.reloadFromStart} />
+          </>
+        }
+        summary={
+          list.status === "success"
+            ? `${total} ${total === 1 ? "venta" : "ventas"}${list.hasActiveFilters ? " con esos filtros" : ""}`
+            : list.status === "loading"
+              ? "Cargando ventas..."
+              : ""
+        }
+      >
+        <SearchInput
+          label="Buscar ventas"
+          placeholder="N.º, cliente o producto"
+          onSearch={(query) => setFilter("q", query)}
+        />
+        <FilterSelect
+          label="Estado de la venta"
+          allLabel="Todas las ventas"
+          value={list.filters.status}
+          options={SALE_STATUS_OPTIONS}
+          onChange={(value) => setFilter("status", value)}
+        />
+        <FilterSelect
+          label="Estado del comprobante"
+          allLabel="Todos los comprobantes"
+          value={list.filters.invoiceStatus}
+          options={INVOICE_STATUS_OPTIONS}
+          onChange={(value) => setFilter("invoiceStatus", value)}
+        />
+      </ListToolbar>
 
-      {status === "loading" && sales.length === 0 ? (
-        <div className="flex justify-center rounded-xl border border-slate-200 py-16">
-          <Spinner aria-label="Cargando ventas" />
-        </div>
-      ) : status === "error" ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-          <p className="font-medium">No se pudieron cargar las ventas.</p>
-          <p className="mt-1">{errorMessage}</p>
-          <Button
-            className="mt-4"
-            size="sm"
-            variant="outline"
-            onPress={retry}
-          >
-            <FiRefreshCw aria-hidden />
-            Reintentar
-          </Button>
-        </div>
-      ) : (
-        <Table>
-          <Table.ScrollContainer
-            className={
-              status === "loading" ? "opacity-60 transition-opacity" : undefined
-            }
-          >
-            <Table.Content
-              aria-label="Listado de ventas"
-              className="min-w-[1180px]"
-            >
-              <Table.Header>
-                <Table.Column id="number" isRowHeader>
-                  N°
-                </Table.Column>
-                <Table.Column id="createdAt">Fecha</Table.Column>
-                <Table.Column id="customer">Cliente</Table.Column>
-                <Table.Column id="items">Productos</Table.Column>
-                <Table.Column id="total">Total</Table.Column>
-                <Table.Column id="invoice">Comprobante</Table.Column>
-                <Table.Column id="status">Estado</Table.Column>
-                <Table.Column id="actions" className="text-center">
-                  Acciones
-                </Table.Column>
-              </Table.Header>
-
-              <Table.Body
-                renderEmptyState={() => (
-                  <div className="py-8 text-center text-sm text-slate-500">
-                    No hay ventas registradas.
-                  </div>
-                )}
-              >
-                {sales.map((sale) => (
-                  <Table.Row key={sale.id} id={sale.id}>
-                    <Table.Cell>#{sale.number}</Table.Cell>
-                    <Table.Cell>{formatDate(sale.createdAt)}</Table.Cell>
-                    <Table.Cell>
-                      {sale.customer
-                        ? getCustomerName(sale.customer)
-                        : "Clientes varios"}
-                    </Table.Cell>
-                    <Table.Cell>
-                      <div className="flex flex-col gap-0.5">
-                        {sale.items.map((item) => (
-                          <span key={item.id} className="text-sm">
-                            {item.quantity}× {item.productName}
-                          </span>
-                        ))}
-                      </div>
-                    </Table.Cell>
-                    <Table.Cell>{formatCurrency(sale.total)}</Table.Cell>
-                    <Table.Cell>
-                      {sale.invoice ? (
-                        <div className="flex flex-col gap-1">
-                          <span className="font-mono text-xs font-medium text-slate-900">
-                            {sale.invoice.series}-
-                            {String(sale.invoice.number).padStart(8, "0")}
-                          </span>
-                          <div className="flex items-center gap-1.5">
-                            <Chip
-                              color={invoiceStatusColor(sale.invoice.status)}
-                              size="sm"
-                              variant="soft"
-                            >
-                              <Chip.Label>
-                                {invoiceStatusLabel(sale.invoice.status)}
-                              </Chip.Label>
-                            </Chip>
-                            {sale.invoice.pdfUrl ? (
-                              <a
-                                className="inline-flex items-center gap-0.5 text-xs text-blue-600 hover:underline"
-                                href={sale.invoice.pdfUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                PDF
-                                <FiExternalLink aria-hidden />
-                              </a>
-                            ) : null}
-                            {sale.invoice.xmlUrl ? (
-                              <a
-                                className="inline-flex items-center gap-0.5 text-xs text-blue-600 hover:underline"
-                                href={sale.invoice.xmlUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                XML
-                                <FiExternalLink aria-hidden />
-                              </a>
-                            ) : null}
-                          </div>
-                          {sale.invoice.status === "PENDIENTE" &&
-                          sale.invoice.errorMessage ? (
-                            <span
-                              className="max-w-[220px] truncate text-xs text-red-600"
-                              title={sale.invoice.errorMessage}
-                            >
-                              {sale.invoice.errorMessage}
-                            </span>
-                          ) : null}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-slate-400">—</span>
-                      )}
-                    </Table.Cell>
-                    <Table.Cell>
-                      <Chip
-                        color={sale.status === "COMPLETADA" ? "success" : "danger"}
-                        size="sm"
-                        variant="soft"
-                      >
-                        <Chip.Label>
-                          {sale.status === "COMPLETADA"
-                            ? "Completada"
-                            : "Anulada"}
-                        </Chip.Label>
-                      </Chip>
-                    </Table.Cell>
-                    <Table.Cell>
-                      <div className="flex items-center justify-center gap-1">
-                        {sale.status === "COMPLETADA" ? (
-                          <>
-                            {sale.invoice?.status === "PENDIENTE" ? (
-                              <Button
-                                isIconOnly
-                                size="sm"
-                                variant="ghost"
-                                aria-label={`Reintentar comprobante de venta #${sale.number}`}
-                                isDisabled={emittingSaleId === sale.id}
-                                onPress={() => void handleEmitInvoice(sale)}
-                              >
-                                {emittingSaleId === sale.id ? (
-                                  <Spinner size="sm" color="current" />
-                                ) : (
-                                  <FiRefreshCw aria-hidden />
-                                )}
-                              </Button>
-                            ) : null}
-                            <Button
-                              isIconOnly
-                              size="sm"
-                              variant="ghost"
-                              aria-label={`Anular venta #${sale.number}`}
-                              onPress={() => {
-                                setSaleToCancel(sale);
-                                setIsCancelDialogOpen(true);
-                              }}
-                            >
-                              <FiXCircle aria-hidden />
-                            </Button>
-                          </>
-                        ) : sale.invoice?.status === "ANULACION_PENDIENTE" ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            isDisabled={refreshingSaleId === sale.id}
-                            onPress={() => void handleRefreshCancellation(sale)}
-                          >
-                            {refreshingSaleId === sale.id ? (
-                              <Spinner size="sm" color="current" />
-                            ) : (
-                              <FiRefreshCw aria-hidden />
-                            )}
-                            Actualizar estado
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-slate-400">—</span>
-                        )}
-                      </div>
-                    </Table.Cell>
-                  </Table.Row>
-                ))}
-              </Table.Body>
-            </Table.Content>
-          </Table.ScrollContainer>
-
-          {status === "success" && total > 0 ? (
-            <Table.Footer>
-              <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <Pagination.Summary className="whitespace-nowrap">
-                  Mostrando {start}–{end} de {total}
-                </Pagination.Summary>
-
-                <Pagination size="sm">
-                  <Pagination.Content>
-                    <Pagination.Item>
-                      <Pagination.Previous
-                        isDisabled={page <= 1}
-                        onPress={() => setPage((current) => current - 1)}
-                      >
-                        <Pagination.PreviousIcon />
-                        Anterior
-                      </Pagination.Previous>
-                    </Pagination.Item>
-
-                    {getPageItems(page, totalPages).map((item, index) =>
-                      item === "ellipsis" ? (
-                        <Pagination.Item key={`ellipsis-${index}`}>
-                          <Pagination.Ellipsis />
-                        </Pagination.Item>
-                      ) : (
-                        <Pagination.Item key={item}>
-                          <Pagination.Link
-                            isActive={item === page}
-                            onPress={() => setPage(item)}
-                          >
-                            {item}
-                          </Pagination.Link>
-                        </Pagination.Item>
-                      ),
-                    )}
-
-                    <Pagination.Item>
-                      <Pagination.Next
-                        isDisabled={page >= totalPages}
-                        onPress={() => setPage((current) => current + 1)}
-                      >
-                        Siguiente
-                        <Pagination.NextIcon />
-                      </Pagination.Next>
-                    </Pagination.Item>
-                  </Pagination.Content>
-                </Pagination>
-              </div>
-            </Table.Footer>
-          ) : null}
-        </Table>
-      )}
+      <DataTable
+        ariaLabel="Listado de ventas"
+        columns={columns}
+        items={list.items}
+        getRowId={(sale) => sale.id}
+        status={list.status}
+        pagination={list.pagination}
+        onPageChange={list.setPage}
+        onRetry={reload}
+        errorTitle="No se pudieron cargar las ventas."
+        errorMessage={list.errorMessage}
+        emptyMessage={
+          list.hasActiveFilters
+            ? "Ninguna venta coincide con los filtros."
+            : "No hay ventas registradas."
+        }
+      />
 
       <CancelSaleDialog
         sale={saleToCancel}
