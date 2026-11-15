@@ -1,161 +1,85 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import {
-  Avatar,
-  Button,
-  Chip,
-  Pagination,
-  Spinner,
-  Table,
-  toast,
-} from "@heroui/react";
-import { FiEdit2, FiFolder, FiImage, FiRefreshCw, FiTrash2 } from "react-icons/fi";
-import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Avatar, Button, Chip, toast } from "@heroui/react";
+import { FiEdit2, FiImage, FiTrash2 } from "react-icons/fi";
 
 import CreateProductModal from "@/components/productos/CreateProductModal";
 import DeleteProductDialog from "@/components/productos/DeleteProductDialog";
 import EditProductModal from "@/components/productos/EditProductModal";
+import DataTable, { type DataTableColumn } from "@/components/ui/DataTable";
+import {
+  FilterSelect,
+  ListToolbar,
+  SearchInput,
+} from "@/components/ui/ListToolbar";
 import { formatCurrency } from "@/src/lib/format";
+import { usePaginatedList } from "@/src/lib/hooks/usePaginatedList";
 import type {
   CategoriesPageResponse,
   Category,
 } from "@/src/lib/types/category";
-import type {
-  Product,
-  ProductsPageResponse,
-} from "@/src/lib/types/product";
-import type { PaginationMeta } from "@/src/lib/types/pagination";
+import type { Product } from "@/src/lib/types/product";
 
-const PAGE_SIZE = 10;
-const PAGE_WINDOW = 1;
+const INITIAL_FILTERS = { q: "", categoryId: "", isActive: "" };
 
-type LoadStatus = "loading" | "success" | "error";
+const STATUS_OPTIONS = [
+  { id: "true", label: "Activos" },
+  { id: "false", label: "Inactivos" },
+];
 
-type ErrorPayload = {
-  error?: { message?: string };
-};
+function StatusChip({ isActive }: { isActive: boolean }) {
+  return (
+    <Chip color={isActive ? "success" : "default"} size="sm" variant="soft">
+      <Chip.Label>{isActive ? "Activo" : "Inactivo"}</Chip.Label>
+    </Chip>
+  );
+}
 
-const EMPTY_PAGINATION: PaginationMeta = {
-  page: 1,
-  pageSize: PAGE_SIZE,
-  total: 0,
-  totalPages: 0,
-  hasNextPage: false,
-  hasPreviousPage: false,
-};
+/** Categorías para el filtro y para los formularios de producto. */
+function useCategories(): Category[] {
+  const [categories, setCategories] = useState<Category[]>([]);
 
-function getPageItems(current: number, total: number): (number | "ellipsis")[] {
-  if (total <= 7) {
-    return Array.from({ length: total }, (_, index) => index + 1);
-  }
+  useEffect(() => {
+    const controller = new AbortController();
 
-  const start = Math.max(2, current - PAGE_WINDOW);
-  const end = Math.min(total - 1, current + PAGE_WINDOW);
-  const items: (number | "ellipsis")[] = [1];
+    fetch("/api/categorias?page=1&pageSize=100", {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: CategoriesPageResponse | null) => {
+        if (payload?.data) setCategories(payload.data);
+      })
+      .catch(() => {
+        // Sin categorías el filtro queda vacío; la tabla sigue funcionando.
+      });
 
-  if (start > 2) items.push("ellipsis");
+    return () => controller.abort();
+  }, []);
 
-  for (let pageNumber = start; pageNumber <= end; pageNumber += 1) {
-    items.push(pageNumber);
-  }
-
-  if (end < total - 1) items.push("ellipsis");
-
-  items.push(total);
-
-  return items;
+  return categories;
 }
 
 export default function ProductsTable() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [pagination, setPagination] =
-    useState<PaginationMeta>(EMPTY_PAGINATION);
-  const [page, setPage] = useState(1);
-  const [reloadToken, setReloadToken] = useState(0);
-  const [status, setStatus] = useState<LoadStatus>("loading");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const list = usePaginatedList<Product, typeof INITIAL_FILTERS>({
+    endpoint: "/api/productos",
+    initialFilters: INITIAL_FILTERS,
+    loadErrorMessage: "No se pudieron cargar los productos.",
+  });
+  const { reloadAfterRemoval, setFilter } = list;
+  const categories = useCategories();
+
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function loadData() {
-      setStatus("loading");
-      setErrorMessage(null);
-
-      try {
-        const [productsResponse, categoriesResponse] = await Promise.all([
-          fetch(`/api/productos?page=${page}&pageSize=${PAGE_SIZE}`, {
-            cache: "no-store",
-            signal: controller.signal,
-          }),
-          fetch("/api/categorias?page=1&pageSize=100", {
-            cache: "no-store",
-            signal: controller.signal,
-          }),
-        ]);
-
-        const productsPayload = (await productsResponse
-          .json()
-          .catch(() => null)) as
-          | (ProductsPageResponse & ErrorPayload)
-          | null;
-        const categoriesPayload = (await categoriesResponse
-          .json()
-          .catch(() => null)) as
-          | (CategoriesPageResponse & ErrorPayload)
-          | null;
-
-        if (!productsResponse.ok) {
-          throw new Error(
-            productsPayload?.error?.message ??
-              "No se pudieron cargar los productos.",
-          );
-        }
-
-        if (!productsPayload) {
-          throw new Error("El servidor devolvió una respuesta inválida.");
-        }
-
-        setProducts(productsPayload.data);
-        setPagination(productsPayload.pagination);
-        setCategories(categoriesPayload?.data ?? []);
-        setStatus("success");
-      } catch (error) {
-        if (controller.signal.aborted) return;
-
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Ocurrió un error inesperado.",
-        );
-        setStatus("error");
-      }
-    }
-
-    void loadData();
-
-    return () => controller.abort();
-  }, [page, reloadToken]);
-
-  const refresh = useCallback(() => {
-    setPage(1);
-    setReloadToken((token) => token + 1);
-  }, []);
-
-  const retry = useCallback(() => {
-    setReloadToken((token) => token + 1);
-  }, []);
-
-  const handleUpdated = useCallback(() => {
-    setReloadToken((token) => token + 1);
-  }, []);
+  const categoryOptions = useMemo(
+    () => categories.map(({ id, name }) => ({ id, label: name })),
+    [categories],
+  );
 
   const handleDelete = useCallback(async () => {
     const product = productToDelete;
@@ -169,9 +93,9 @@ export default function ProductsTable() {
       });
 
       if (!response.ok) {
-        const payload = (await response
-          .json()
-          .catch(() => null)) as ErrorPayload | null;
+        const payload = (await response.json().catch(() => null)) as {
+          error?: { message?: string };
+        } | null;
 
         throw new Error(
           payload?.error?.message ?? "No se pudo eliminar el producto.",
@@ -183,12 +107,7 @@ export default function ProductsTable() {
       });
 
       setIsDeleteDialogOpen(false);
-
-      if (products.length === 1 && page > 1) {
-        setPage((current) => current - 1);
-      } else {
-        setReloadToken((token) => token + 1);
-      }
+      reloadAfterRemoval();
     } catch (error) {
       toast.danger("No se pudo eliminar el producto", {
         description:
@@ -199,229 +118,179 @@ export default function ProductsTable() {
     } finally {
       setIsDeleting(false);
     }
-  }, [productToDelete, products.length, page]);
+  }, [productToDelete, reloadAfterRemoval]);
 
-  const total = pagination.total;
-  const totalPages = pagination.totalPages;
-  const start = total === 0 ? 0 : (page - 1) * pagination.pageSize + 1;
-  const end = Math.min(page * pagination.pageSize, total);
+  const columns = useMemo<DataTableColumn<Product>[]>(
+    () => [
+      {
+        id: "name",
+        header: "Producto",
+        isRowHeader: true,
+        isPrimary: true,
+        cell: (product) => (
+          <div className="flex items-center gap-3">
+            <Avatar size="md" color="accent" className="max-sm:hidden">
+              {product.imageUrl ? (
+                <Avatar.Image src={product.imageUrl} alt="" />
+              ) : null}
+              <Avatar.Fallback>
+                <FiImage aria-hidden />
+              </Avatar.Fallback>
+            </Avatar>
+
+            <div className="min-w-0">
+              <span className="block font-medium text-foreground">
+                {product.name}
+              </span>
+              <span className="block text-xs text-muted">{product.sku}</span>
+              <span className="tabular mt-1 block text-xs text-muted sm:hidden">
+                {formatCurrency(product.price)} ·{" "}
+                <span className={product.stock === 0 ? "text-danger" : ""}>
+                  Stock: {product.stock}
+                </span>
+                {product.isActive ? "" : " · Inactivo"}
+              </span>
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "category",
+        header: "Categoría",
+        hideBelow: "lg",
+        cell: (product) => product.category?.name ?? "—",
+      },
+      {
+        id: "price",
+        header: "Precio",
+        hideBelow: "sm",
+        align: "end",
+        cell: (product) => (
+          <span className="tabular whitespace-nowrap">
+            {formatCurrency(product.price)}
+          </span>
+        ),
+      },
+      {
+        id: "stock",
+        header: "Stock",
+        hideBelow: "sm",
+        align: "end",
+        cell: (product) => (
+          <span
+            className={`tabular ${product.stock === 0 ? "font-medium text-danger" : ""}`}
+          >
+            {product.stock}
+          </span>
+        ),
+      },
+      {
+        id: "status",
+        header: "Estado",
+        hideBelow: "md",
+        cell: (product) => <StatusChip isActive={product.isActive} />,
+      },
+      {
+        id: "actions",
+        header: "Acciones",
+        align: "center",
+        cell: (product) => (
+          <div className="flex items-center justify-center gap-1">
+            <Button
+              isIconOnly
+              size="sm"
+              variant="ghost"
+              aria-label={`Editar ${product.name}`}
+              onPress={() => {
+                setProductToEdit(product);
+                setIsEditDialogOpen(true);
+              }}
+            >
+              <FiEdit2 aria-hidden />
+            </Button>
+            <Button
+              isIconOnly
+              size="sm"
+              variant="ghost"
+              aria-label={`Eliminar ${product.name}`}
+              onPress={() => {
+                setProductToDelete(product);
+                setIsDeleteDialogOpen(true);
+              }}
+            >
+              <FiTrash2 aria-hidden />
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [],
+  );
+
+  const total = list.pagination.total;
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-slate-500">
-          {status === "success"
-            ? `${total} ${total === 1 ? "producto registrado" : "productos registrados"}`
-            : "Cargando productos..."}
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/admin/categorias"
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
-          >
-            <FiFolder aria-hidden />
-            Categorías
-          </Link>
-          <CreateProductModal categories={categories} onCreated={refresh} />
-        </div>
-      </div>
+      <ListToolbar
+        actions={
+          <CreateProductModal
+            categories={categories}
+            onCreated={list.reloadFromStart}
+          />
+        }
+        summary={
+          list.status === "success"
+            ? `${total} ${total === 1 ? "producto" : "productos"}${list.hasActiveFilters ? " con esos filtros" : ""}`
+            : list.status === "loading"
+              ? "Cargando productos..."
+              : ""
+        }
+      >
+        <SearchInput
+          label="Buscar productos"
+          placeholder="Buscar por nombre o SKU"
+          onSearch={(query) => setFilter("q", query)}
+        />
+        <FilterSelect
+          label="Categoría"
+          allLabel="Todas las categorías"
+          value={list.filters.categoryId}
+          options={categoryOptions}
+          onChange={(value) => setFilter("categoryId", value)}
+        />
+        <FilterSelect
+          label="Estado"
+          allLabel="Todos los estados"
+          value={list.filters.isActive}
+          options={STATUS_OPTIONS}
+          onChange={(value) => setFilter("isActive", value)}
+        />
+      </ListToolbar>
 
-      {status === "loading" && products.length === 0 ? (
-        <div className="flex justify-center rounded-xl border border-slate-200 py-16">
-          <Spinner aria-label="Cargando productos" />
-        </div>
-      ) : status === "error" ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-          <p className="font-medium">No se pudieron cargar los productos.</p>
-          <p className="mt-1">{errorMessage}</p>
-          <Button
-            className="mt-4"
-            size="sm"
-            variant="outline"
-            onPress={retry}
-          >
-            <FiRefreshCw aria-hidden />
-            Reintentar
-          </Button>
-        </div>
-      ) : (
-        <Table>
-          <Table.ScrollContainer
-            className={
-              status === "loading" ? "opacity-60 transition-opacity" : undefined
-            }
-          >
-            <Table.Content
-              aria-label="Listado de productos"
-              className="min-w-[980px]"
-            >
-              <Table.Header>
-                <Table.Column id="sku" isRowHeader>
-                  SKU
-                </Table.Column>
-                <Table.Column id="name">Producto</Table.Column>
-                <Table.Column id="category">Categoría</Table.Column>
-                <Table.Column id="price">Precio</Table.Column>
-                <Table.Column id="stock">Stock</Table.Column>
-                <Table.Column id="status">Estado</Table.Column>
-                <Table.Column id="actions" className="text-center">
-                  Acciones
-                </Table.Column>
-              </Table.Header>
-
-              <Table.Body
-                renderEmptyState={() => (
-                  <div className="py-8 text-center text-sm text-slate-500">
-                    No hay productos registrados.
-                  </div>
-                )}
-              >
-                {products.map((product) => (
-                  <Table.Row key={product.id} id={product.id}>
-                    <Table.Cell>{product.sku}</Table.Cell>
-                    <Table.Cell>
-                      <div className="flex items-center gap-3">
-                        <Avatar size="md" color="accent">
-                          {product.imageUrl ? (
-                            <Avatar.Image
-                              src={product.imageUrl}
-                              alt={product.name}
-                            />
-                          ) : null}
-                          <Avatar.Fallback>
-                            <FiImage aria-hidden />
-                          </Avatar.Fallback>
-                        </Avatar>
-
-                        <div className="flex flex-col">
-                          <span className="font-medium text-slate-900">
-                            {product.name}
-                          </span>
-                          {product.description ? (
-                            <span className="text-xs text-slate-500">
-                              {product.description}
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                    </Table.Cell>
-                    <Table.Cell>{product.category?.name ?? "—"}</Table.Cell>
-                    <Table.Cell>{formatCurrency(product.price)}</Table.Cell>
-                    <Table.Cell>
-                      <span
-                        className={
-                          product.stock === 0
-                            ? "font-medium text-red-600"
-                            : undefined
-                        }
-                      >
-                        {product.stock}
-                      </span>
-                    </Table.Cell>
-                    <Table.Cell>
-                      <Chip
-                        color={product.isActive ? "success" : "default"}
-                        size="sm"
-                        variant="soft"
-                      >
-                        <Chip.Label>
-                          {product.isActive ? "Activo" : "Inactivo"}
-                        </Chip.Label>
-                      </Chip>
-                    </Table.Cell>
-                    <Table.Cell>
-                      <div className="flex items-center justify-center gap-1">
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          variant="ghost"
-                          aria-label={`Editar ${product.name}`}
-                          onPress={() => {
-                            setProductToEdit(product);
-                            setIsEditDialogOpen(true);
-                          }}
-                        >
-                          <FiEdit2 aria-hidden />
-                        </Button>
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          variant="ghost"
-                          aria-label={`Eliminar ${product.name}`}
-                          onPress={() => {
-                            setProductToDelete(product);
-                            setIsDeleteDialogOpen(true);
-                          }}
-                        >
-                          <FiTrash2 aria-hidden />
-                        </Button>
-                      </div>
-                    </Table.Cell>
-                  </Table.Row>
-                ))}
-              </Table.Body>
-            </Table.Content>
-          </Table.ScrollContainer>
-
-          {status === "success" && total > 0 ? (
-            <Table.Footer>
-              <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <Pagination.Summary className="whitespace-nowrap">
-                  Mostrando {start}–{end} de {total}
-                </Pagination.Summary>
-
-                <Pagination size="sm">
-                  <Pagination.Content>
-                    <Pagination.Item>
-                      <Pagination.Previous
-                        isDisabled={page <= 1}
-                        onPress={() => setPage((current) => current - 1)}
-                      >
-                        <Pagination.PreviousIcon />
-                        Anterior
-                      </Pagination.Previous>
-                    </Pagination.Item>
-
-                    {getPageItems(page, totalPages).map((item, index) =>
-                      item === "ellipsis" ? (
-                        <Pagination.Item key={`ellipsis-${index}`}>
-                          <Pagination.Ellipsis />
-                        </Pagination.Item>
-                      ) : (
-                        <Pagination.Item key={item}>
-                          <Pagination.Link
-                            isActive={item === page}
-                            onPress={() => setPage(item)}
-                          >
-                            {item}
-                          </Pagination.Link>
-                        </Pagination.Item>
-                      ),
-                    )}
-
-                    <Pagination.Item>
-                      <Pagination.Next
-                        isDisabled={page >= totalPages}
-                        onPress={() => setPage((current) => current + 1)}
-                      >
-                        Siguiente
-                        <Pagination.NextIcon />
-                      </Pagination.Next>
-                    </Pagination.Item>
-                  </Pagination.Content>
-                </Pagination>
-              </div>
-            </Table.Footer>
-          ) : null}
-        </Table>
-      )}
+      <DataTable
+        ariaLabel="Listado de productos"
+        columns={columns}
+        items={list.items}
+        getRowId={(product) => product.id}
+        status={list.status}
+        pagination={list.pagination}
+        onPageChange={list.setPage}
+        onRetry={list.reload}
+        errorTitle="No se pudieron cargar los productos."
+        errorMessage={list.errorMessage}
+        emptyMessage={
+          list.hasActiveFilters
+            ? "Ningún producto coincide con los filtros."
+            : "No hay productos registrados."
+        }
+      />
 
       <EditProductModal
         product={productToEdit}
         categories={categories}
         isOpen={isEditDialogOpen}
         onClose={() => setIsEditDialogOpen(false)}
-        onUpdated={handleUpdated}
+        onUpdated={list.reload}
       />
 
       <DeleteProductDialog

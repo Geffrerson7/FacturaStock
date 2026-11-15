@@ -40,21 +40,21 @@ export default function DeleteCustomerDialog({
               <Modal.Heading>Eliminar cliente</Modal.Heading>
             </Modal.Header>
 
-            <Modal.Body className="flex flex-col gap-3 text-sm text-slate-600">
+            <Modal.Body className="flex flex-col gap-3 text-sm text-muted">
               <p>
                 ¿Seguro que deseas eliminar a{" "}
-                <span className="font-medium text-slate-900">
+                <span className="font-medium text-foreground">
                   {customer ? getCustomerName(customer) : ""}
                 </span>
                 ?
               </p>
               <p>
                 {customer?.documentType ?? "Documento"}:{" "}
-                <span className="font-medium text-slate-900">
+                <span className="font-medium text-foreground">
                   {customer ? getCustomerDocument(customer) : "—"}
                 </span>
               </p>
-              <p className="text-red-600">
+              <p className="text-danger">
                 Esta acción no se puede deshacer.
               </p>
             </Modal.Body>

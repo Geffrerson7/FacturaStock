@@ -138,7 +138,7 @@ export default function SearchPicker<T>({
 
       {isOpen ? (
         <div
-          className="rounded-xl border border-slate-200 bg-white"
+          className="rounded-xl border border-border bg-surface"
           aria-live="polite"
         >
           {state.status === "loading" || state.status === "idle" ? (
@@ -146,12 +146,12 @@ export default function SearchPicker<T>({
               <Spinner size="sm" aria-label="Buscando" />
             </div>
           ) : state.status === "error" ? (
-            <p className="px-3 py-3 text-sm text-red-700">{state.message}</p>
+            <p className="px-3 py-3 text-sm text-danger">{state.message}</p>
           ) : state.items.length === 0 ? (
-            <p className="px-3 py-3 text-sm text-slate-500">{emptyMessage}</p>
+            <p className="px-3 py-3 text-sm text-muted">{emptyMessage}</p>
           ) : (
             <>
-              <ul className="max-h-64 divide-y divide-slate-100 overflow-y-auto">
+              <ul className="max-h-64 divide-y divide-separator overflow-y-auto">
                 {state.items.map((item) => {
                   const isDisabled = isItemDisabled?.(item) ?? false;
 
@@ -160,7 +160,7 @@ export default function SearchPicker<T>({
                       <button
                         type="button"
                         disabled={isDisabled}
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50 focus-visible:bg-slate-100 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-surface-secondary focus-visible:bg-default focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                         onClick={() => handleSelect(item)}
                       >
                         {renderItem(item)}
@@ -170,7 +170,7 @@ export default function SearchPicker<T>({
                 })}
               </ul>
               {state.total > state.items.length ? (
-                <p className="border-t border-slate-100 px-3 py-2 text-xs text-slate-500">
+                <p className="border-t border-separator px-3 py-2 text-xs text-muted">
                   Mostrando {state.items.length} de {state.total}. Escribe para
                   afinar la búsqueda.
                 </p>

@@ -115,14 +115,14 @@ export default function Login({ showDemo }: { showDemo: boolean }) {
         </TextField>
 
         {errorMessage ? (
-          <p role="alert" className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-danger">
             {errorMessage}
           </p>
         ) : null}
 
         <Button
           type="submit"
-          className="w-full bg-black"
+          fullWidth
           isPending={pending === "form"}
           isDisabled={pending !== null}
         >
@@ -132,7 +132,7 @@ export default function Login({ showDemo }: { showDemo: boolean }) {
 
       {showDemo ? (
         <Button
-          className="mt-3 w-full bg-gray-100 text-black"
+          fullWidth variant="secondary" className="mt-3"
           isPending={pending === "demo"}
           isDisabled={pending !== null}
           onPress={() => void signInAsDemo()}

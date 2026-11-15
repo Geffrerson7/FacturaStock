@@ -21,7 +21,6 @@ export default function CreateProductModal({
   return (
     <Modal state={state}>
       <Button
-        className="bg-black text-white"
         variant="primary"
         isDisabled={categories.length === 0}
         onPress={state.open}

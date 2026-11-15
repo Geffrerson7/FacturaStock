@@ -18,7 +18,6 @@ export default function CreateCategoryModal({
   return (
     <Modal state={state}>
       <Button
-        className="bg-black text-white"
         variant="primary"
         onPress={state.open}
       >

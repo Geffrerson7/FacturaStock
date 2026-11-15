@@ -151,7 +151,7 @@ export default function RegisterForm() {
         <FieldError />
       </TextField>
 
-      <Button type="submit" className="mt-2 w-full bg-black" isPending={isSubmitting}>
+      <Button type="submit" fullWidth className="mt-2" isPending={isSubmitting}>
         {isSubmitting ? "Creando cuenta..." : "Crear cuenta"}
       </Button>
     </Form>

@@ -395,7 +395,7 @@ export default function CustomerForm({
         </TextField>
       </div>
 
-      <Button type="submit" className="bg-black w-full" isPending={isSubmitting}>
+      <Button type="submit" fullWidth isPending={isSubmitting}>
         {isSubmitting
           ? customer
             ? "Guardando..."
