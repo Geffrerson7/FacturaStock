@@ -14,6 +14,7 @@ const db = vi.hoisted(() => ({
 
 vi.mock("@/src/lib/prisma", () => ({ prisma: db }));
 
+import { niceScale } from "@/components/dashboard/SalesChart";
 import { buildProductWhere } from "@/src/lib/api/product";
 import {
   bucketSalesByDay,
@@ -202,6 +203,21 @@ describe("datos del dashboard", () => {
     expect(db.product.count.mock.calls[0][0].where).toEqual({
       AND: [{ isActive: true }, { stock: { lte: LOW_STOCK_FIELD } }],
     });
+  });
+});
+
+describe("escala del gráfico de ventas", () => {
+  it("elige un tope redondo y cercano al máximo", () => {
+    expect(niceScale(650)).toEqual({ top: 750, step: 250 });
+    expect(niceScale(1400)).toEqual({ top: 1500, step: 500 });
+    expect(niceScale(90)).toEqual({ top: 150, step: 50 });
+    expect(niceScale(0)).toEqual({ top: 300, step: 100 });
+  });
+
+  it("el tope nunca queda por debajo del máximo", () => {
+    for (const max of [1, 7.5, 99, 101, 333, 2501, 98765]) {
+      expect(niceScale(max).top).toBeGreaterThanOrEqual(max);
+    }
   });
 });
 

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Papas fritas 150 g">
+  <rect width="128" height="128" rx="24" fill="#eab308" fill-opacity=".14"/>
+    <path d="M36 22l7 5 7-5 7 5 7-5 7 5 7-5 7 5 7-5v8c4 18 4 52 0 74H36c-4-22-4-56 0-74z" fill="#eab308"/>
+    <path d="M64 27l7-5 7 5 7-5 7 5v8c4 18 4 52 0 74H64z" fill="#000" fill-opacity=".14"/>
+    <ellipse cx="64" cy="68" rx="20" ry="16" fill="#fff" fill-opacity=".9"/>
+    <rect x="52" y="64" width="24" height="3" rx="1.5" fill="#eab308"/>
+    <rect x="56" y="70" width="16" height="3" rx="1.5" fill="#eab308" fill-opacity=".5"/>
+    <rect x="41" y="40" width="4" height="52" rx="2" fill="#fff" fill-opacity=".28"/>
+</svg>

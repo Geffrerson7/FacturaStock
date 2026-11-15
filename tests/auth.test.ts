@@ -333,10 +333,10 @@ describe("proxy", () => {
     expect(response.headers.get("x-middleware-next")).toBe("1");
   });
 
-  it("no cubre la autenticación ni el endpoint de salud", () => {
+  it("no cubre la autenticación, el endpoint de salud ni las tareas programadas", () => {
     expect(proxyConfig.matcher).toEqual([
       "/admin/:path*",
-      "/api/((?!auth/|health/).*)",
+      "/api/((?!auth/|health/|cron/).*)",
     ]);
   });
 });

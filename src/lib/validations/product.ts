@@ -28,6 +28,8 @@ const optionalDescription = z
   )
   .transform((value) => value ?? null);
 
+const DEMO_IMAGE_PATH = /^\/demo\/products\/[a-z0-9-]+\.svg$/;
+
 const emptyToNull = (value: unknown) =>
   typeof value === "string" && value.trim() === "" ? null : value;
 
@@ -35,8 +37,14 @@ const optionalImageUrl = z
   .preprocess(
     emptyToNull,
     z
-      .url("La URL de la imagen no es válida.")
-      .max(500, "La URL de la imagen no puede superar los 500 caracteres.")
+      .union(
+        [
+          z.url().max(500),
+          // Ilustraciones de los productos de la demo, servidas desde /public.
+          z.string().regex(DEMO_IMAGE_PATH),
+        ],
+        "La URL de la imagen no es válida.",
+      )
       .nullable()
       .optional(),
   )

@@ -34,15 +34,16 @@ function toDate(key: string): Date {
   return new Date(`${key}T00:00:00Z`);
 }
 
-/** Tope del eje y paso entre marcas, en soles, redondeados a 1, 2 o 5 × 10ⁿ. */
-function niceScale(maxSoles: number, tickCount = 3) {
+/** Tope del eje y paso entre marcas, en soles, redondeados a 1, 2, 2.5 o 5 × 10ⁿ. */
+export function niceScale(maxSoles: number, tickCount = 3) {
   if (maxSoles <= 0) return { top: 100 * tickCount, step: 100 };
 
   const rough = maxSoles / tickCount;
   const magnitude = 10 ** Math.floor(Math.log10(rough));
   const step =
-    [1, 2, 5, 10].map((factor) => factor * magnitude).find((s) => s >= rough) ??
-    10 * magnitude;
+    [1, 2, 2.5, 5, 10]
+      .map((factor) => factor * magnitude)
+      .find((s) => s >= rough) ?? 10 * magnitude;
 
   return { top: step * tickCount, step };
 }

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Esponja multiuso">
+  <rect width="128" height="128" rx="24" fill="#f97316" fill-opacity=".14"/>
+    <path d="M18 46l6 4-6 4 6 4-6 4 6 4-6 4 6 4-6 4h92l-6-4 6-4-6-4 6-4-6-4 6-4-6-4 6-4-6-4z" fill="#f97316"/>
+    <path d="M18 66h92l-6 4 6 4-6 4 6 4H18l6-4-6-4 6-4z" fill="#000" fill-opacity=".14"/>
+    <rect x="38" y="50" width="52" height="24" rx="12" fill="#fff" fill-opacity=".9"/>
+    <rect x="48" y="58" width="32" height="3" rx="1.5" fill="#f97316"/>
+    <rect x="54" y="64" width="20" height="3" rx="1.5" fill="#f97316" fill-opacity=".5"/>
+</svg>

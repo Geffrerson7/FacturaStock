@@ -18,7 +18,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:reset": "prisma migrate reset",
     "db:seed": "prisma db seed",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "demo:images": "tsx scripts/generate-demo-images.ts"
   },
   "dependencies": {
     "@heroui/react": "^3.2.6",

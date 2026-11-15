@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Papel higiénico 4 rollos">
+  <rect width="128" height="128" rx="24" fill="#64748b" fill-opacity=".14"/>
+    <rect x="22" y="34" width="84" height="76" rx="10" fill="#64748b"/>
+    <path d="M64 34h32a10 10 0 0 1 10 10v56a10 10 0 0 1-10 10H64z" fill="#000" fill-opacity=".14"/>
+    <circle cx="44" cy="56" r="14" fill="#fff" fill-opacity=".9"/>
+    <circle cx="84" cy="56" r="14" fill="#fff" fill-opacity=".9"/>
+    <circle cx="44" cy="90" r="14" fill="#fff" fill-opacity=".9"/>
+    <circle cx="84" cy="90" r="14" fill="#fff" fill-opacity=".9"/>
+    <circle cx="44" cy="56" r="4" fill="#64748b"/>
+    <circle cx="84" cy="56" r="4" fill="#64748b"/>
+    <circle cx="44" cy="90" r="4" fill="#64748b"/>
+    <circle cx="84" cy="90" r="4" fill="#64748b"/>
+</svg>
