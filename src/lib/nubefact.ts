@@ -1,8 +1,9 @@
 import { ApiError } from "@/src/lib/api/errors";
 import { getCustomerName, WALK_IN_DNI } from "@/src/lib/customer";
+import { computeLineTax, toCents } from "@/src/lib/tax";
 import type { CustomerDocumentType } from "@/src/lib/types/customer";
 
-export const IGV_RATE = 0.18;
+export { IGV_RATE } from "@/src/lib/tax";
 
 /**
  * Valores que se usan si el entorno no define las variables `NUBEFACT_*`.
@@ -275,10 +276,6 @@ export function resolveInvoiceIdentity(
   };
 }
 
-function toCents(value: number): number {
-  return Math.round(value * 100);
-}
-
 export function buildNubefactItems(items: TaxableSaleItem[]): {
   items: NubefactItem[];
   totalGravada: number;
@@ -286,22 +283,18 @@ export function buildNubefactItems(items: TaxableSaleItem[]): {
   total: number;
 } {
   const mapped = items.map((item) => {
-    const priceCents = toCents(item.unitPrice);
-    const totalCents = priceCents * item.quantity;
-    const valorUnitCents = Math.round(priceCents / (1 + IGV_RATE));
-    const subtotalCents = valorUnitCents * item.quantity;
-    const igvCents = totalCents - subtotalCents;
+    const cents = computeLineTax(item);
 
     return {
       unidad_de_medida: "NIU" as const,
       descripcion: truncate(item.description, 250),
       cantidad: item.quantity,
-      valor_unitario: valorUnitCents / 100,
-      precio_unitario: priceCents / 100,
-      subtotal: subtotalCents / 100,
+      valor_unitario: cents.unitValue / 100,
+      precio_unitario: cents.unitPrice / 100,
+      subtotal: cents.taxable / 100,
       tipo_de_igv: 1 as const,
-      igv: igvCents / 100,
-      total: totalCents / 100,
+      igv: cents.igv / 100,
+      total: cents.total / 100,
       anticipo_regularizacion: false as const,
     };
   });

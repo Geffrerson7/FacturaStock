@@ -11,6 +11,7 @@ import { FiImage, FiTrash2, FiUploadCloud } from "react-icons/fi";
 import {
   Avatar,
   Button,
+  Description,
   FieldError,
   Form,
   Input,
@@ -25,7 +26,10 @@ import {
 
 import type { Category } from "@/src/lib/types/category";
 import type { Product } from "@/src/lib/types/product";
-import { createProductSchema } from "@/src/lib/validations/product";
+import {
+  createProductSchema,
+  DEFAULT_LOW_STOCK_THRESHOLD,
+} from "@/src/lib/validations/product";
 
 type FieldErrors = Record<string, string>;
 
@@ -257,6 +261,7 @@ export default function ProductForm({
       description: String(formData.get("description") ?? ""),
       price: formData.get("price"),
       stock: formData.get("stock"),
+      lowStockThreshold: formData.get("lowStockThreshold"),
       categoryId,
       isActive,
       imageUrl: image?.url ?? null,
@@ -402,6 +407,28 @@ export default function ProductForm({
           ) : null}
         </NumberField>
       </div>
+
+      <NumberField
+        name="lowStockThreshold"
+        defaultValue={product?.lowStockThreshold ?? DEFAULT_LOW_STOCK_THRESHOLD}
+        minValue={0}
+        step={1}
+        isRequired
+      >
+        <Label>Aviso de stock bajo</Label>
+        <NumberField.Group>
+          <NumberField.DecrementButton />
+          <NumberField.Input />
+          <NumberField.IncrementButton />
+        </NumberField.Group>
+        <Description>
+          El producto se marca con stock bajo cuando quedan estas unidades o
+          menos.
+        </Description>
+        {errors.lowStockThreshold ? (
+          <p className="text-sm text-danger">{errors.lowStockThreshold}</p>
+        ) : null}
+      </NumberField>
 
       <div className="flex flex-col gap-2">
         <Select

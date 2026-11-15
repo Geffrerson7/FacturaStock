@@ -7,7 +7,7 @@ import { formatCurrency } from "@/src/lib/format";
 import type { Sale } from "@/src/lib/types/sale";
 
 type CancelSaleDialogProps = {
-  sale: Sale | null;
+  sale: Pick<Sale, "number" | "total"> | null;
   isOpen: boolean;
   isCancelling: boolean;
   onCancel: () => void;

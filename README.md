@@ -4,6 +4,12 @@ Aplicación de inventario y punto de venta construida con **Next.js 16** y **Pos
 
 ## Funcionalidades
 
+- **Dashboard**
+  - Ventas de hoy y del mes, comprobantes emitidos en el mes y comprobantes pendientes de emisión.
+  - Gráfico de ventas por día de los últimos 30 días (hora de Lima), con tooltip y vista de tabla.
+  - Últimas ventas y productos activos con stock bajo.
+  - Se calcula en el servidor en cada petición; solo cuenta ventas completadas.
+
 - **Clientes**
   - Registro de personas naturales con DNI y empresas con RUC.
   - CRUD con validaciones y paginación; búsqueda por nombre o documento en la API.
@@ -14,6 +20,7 @@ Aplicación de inventario y punto de venta construida con **Next.js 16** y **Pos
   - CRUD con SKU único, precio, stock, categoría y estado activo/inactivo.
   - Imagen del producto subida a Cloudinary (archivo, arrastrar y soltar o URL), guardada en la base y mostrada con un avatar en el listado.
   - Paginación y control de stock.
+  - Umbral de stock bajo por producto (5 unidades por defecto): el listado marca los productos agotados o con stock bajo y se puede filtrar por ellos.
 
 - **Categorías**
   - Módulo propio con tabla paginada, creación y edición.
@@ -21,8 +28,10 @@ Aplicación de inventario y punto de venta construida con **Next.js 16** y **Pos
   - No se puede eliminar una categoría que tenga productos asignados.
 
 - **Ventas**
-  - Registro de ventas con descuento automático de stock; los productos y el cliente se buscan en el servidor mientras se escribe.
+  - Punto de venta en su propia página (`/admin/ventas/nueva`): buscador de productos y clientes, cantidades editables y desglose de base imponible, IGV y total antes de confirmar. El desglose usa el mismo cálculo que el comprobante.
+  - Descuento automático de stock al registrar la venta.
   - Cada venta guarda su base imponible, IGV y total.
+  - Página de detalle con las líneas, el estado del comprobante, los enlaces al PDF, XML y CDR, y las acciones de reintentar, anular y consultar la anulación.
   - Anulación con reposición de stock, protegida contra anulaciones simultáneas.
   - Historial paginado con detalle de productos.
 
@@ -187,11 +196,13 @@ request.
 | --- | --- |
 | `/` | Login. |
 | `/register` | Registro (solo con `AUTH_ALLOW_SIGNUP=true`). |
-| `/admin/dashboard` | Dashboard (placeholder). |
+| `/admin/dashboard` | Indicadores de ventas, comprobantes y stock. |
 | `/admin/clientes` | Gestión de clientes. |
 | `/admin/productos` | Gestión de productos. |
 | `/admin/categorias` | Gestión de categorías. |
-| `/admin/ventas` | Registro e historial de ventas. |
+| `/admin/ventas` | Historial de ventas. |
+| `/admin/ventas/nueva` | Punto de venta. |
+| `/admin/ventas/[id]` | Detalle de una venta y su comprobante. |
 
 ## API
 
@@ -221,7 +232,7 @@ Todos los listados aceptan `page` y `pageSize` (máximo 100), `q` para buscar, y
 
 | Listado | `q` busca en | Filtros | `sort` |
 | --- | --- | --- | --- |
-| `/api/productos` | Nombre, SKU | `categoryId`, `isActive` (`true` o `false`) | `createdAt` (por defecto, `desc`), `name`, `sku`, `price`, `stock` |
+| `/api/productos` | Nombre, SKU | `categoryId`, `isActive` (`true` o `false`), `lowStock` (`true`: stock menor o igual al umbral del producto) | `createdAt` (por defecto, `desc`), `name`, `sku`, `price`, `stock` |
 | `/api/clientes` | Nombres, apellidos, razón social, DNI, RUC, correo | `documentType` (`DNI` o `RUC`) | `createdAt` (por defecto, `desc`), `name`, `document` |
 | `/api/categorias` | Nombre, descripción | — | `name` (por defecto, `asc`), `createdAt`, `productCount` |
 | `/api/ventas` | Número de venta, serie y número del comprobante, cliente, productos | `status`, `invoiceStatus`, `from` y `to` (`AAAA-MM-DD`, hora de Lima, ambos inclusive) | `createdAt` (por defecto, `desc`), `number`, `total` |
@@ -288,7 +299,8 @@ components/
   login/            # Formulario de login
   productos/        # Tabla y formularios de productos
   register/         # Formulario de registro
-  ventas/           # Tabla, formulario y anulación de ventas
+  dashboard/        # Gráfico de ventas por día
+  ventas/           # Tabla, punto de venta, detalle y acciones de ventas
 prisma/
   migrations/       # Migraciones de la base de datos
   schema.prisma     # Modelos y enums
@@ -363,7 +375,6 @@ contraseña y sesiones guardadas en PostgreSQL.
 
 - No hay recuperación de contraseña ni gestión de usuarios desde la interfaz.
 - El límite de las consultas de DNI y RUC se guarda en memoria, por proceso.
-- El dashboard es un placeholder.
 - Solo se emiten facturas y boletas; no hay notas de crédito ni débito.
 - La emisión real requiere credenciales válidas de Nubefact.
 

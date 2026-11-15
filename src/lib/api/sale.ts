@@ -2,6 +2,7 @@ import type { Prisma } from "@/src/generated/prisma/client";
 
 import { ApiError } from "./errors";
 import { customerTextFilters } from "./customer-data";
+import { addDays, limaMidnight } from "@/src/lib/lima-time";
 import { searchTokens } from "@/src/lib/validations/list";
 import { saleIdSchema, type ListSalesQuery } from "@/src/lib/validations/sale";
 
@@ -47,13 +48,6 @@ export function saleAlreadyCancelled() {
   );
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-/** Medianoche en Lima (UTC-5, sin horario de verano) de una fecha AAAA-MM-DD. */
-function limaMidnight(date: string): Date {
-  return new Date(`${date}T00:00:00-05:00`);
-}
-
 /** Una palabra de la búsqueda: número de venta o comprobante, cliente o producto. */
 function saleTokenFilter(token: string): Prisma.SaleWhereInput {
   const contains = { contains: token, mode: "insensitive" as const };
@@ -89,7 +83,7 @@ export function buildSaleWhere({
       ...(from ? [{ createdAt: { gte: limaMidnight(from) } }] : []),
       // `to` es inclusivo: llega hasta el final de ese día.
       ...(to
-        ? [{ createdAt: { lt: new Date(limaMidnight(to).getTime() + DAY_MS) } }]
+        ? [{ createdAt: { lt: addDays(limaMidnight(to), 1) } }]
         : []),
       ...searchTokens(q).map(saleTokenFilter),
     ],
