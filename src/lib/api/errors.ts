@@ -1,3 +1,5 @@
+import { unstable_rethrow } from "next/navigation";
+
 import { Prisma } from "@/src/generated/prisma/client";
 
 type ErrorExtra = {
@@ -82,6 +84,10 @@ export function handleApiError(
   error: unknown,
   conflict: ConflictOptions = DEFAULT_CONFLICT,
 ): Response {
+  // Los errores internos de Next.js (p. ej. la interrupción del prerender al
+  // leer `request.headers` durante el build) deben llegar al framework.
+  unstable_rethrow(error);
+
   if (error instanceof ApiError) {
     return errorResponse(error.status, error.code, error.message, {
       details: error.details,
