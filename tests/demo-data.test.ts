@@ -145,6 +145,7 @@ describe("sincronización de la demo", () => {
     },
     $transaction: vi.fn(),
     $queryRaw: vi.fn(),
+    $executeRaw: vi.fn(),
   };
 
   beforeEach(() => {
@@ -183,6 +184,23 @@ describe("sincronización de la demo", () => {
     // Solo borra las ventas sin comprobante: nunca una venta real.
     expect(db.sale.deleteMany).toHaveBeenCalledWith({ where: DEMO_SALE_WHERE });
     expect(db.product.upsert).toHaveBeenCalledTimes(DEMO_PRODUCTS.length);
+
+    // El kárdex de toda la demo se reemplaza con pocas consultas (contra
+    // una base remota, una por producto agotaba el tiempo de la
+    // transacción) y con un tiempo máximo mayor que el de Prisma.
+    expect(db.stockMovement.deleteMany).toHaveBeenCalledTimes(1);
+    expect(db.stockMovement.createMany).toHaveBeenCalledTimes(1);
+    expect(db.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(db.product.update).not.toHaveBeenCalled();
+    const kardexTransaction = db.$transaction.mock.calls.find(
+      ([argument]) => typeof argument === "function",
+    );
+    expect(kardexTransaction?.[1]).toMatchObject({ timeout: 60_000 });
+    const movements = db.stockMovement.createMany.mock.calls[0][0].data;
+    const lines = db.saleItem.createMany.mock.calls[0][0].data.length;
+    expect(
+      movements.filter((row: { type: string }) => row.type === "VENTA"),
+    ).toHaveLength(lines);
 
     const sales = db.sale.createMany.mock.calls[0][0].data;
     const dates = sales.map((sale: { createdAt: Date }) => sale.createdAt.getTime());

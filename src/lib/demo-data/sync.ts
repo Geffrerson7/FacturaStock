@@ -2,7 +2,10 @@ import { randomUUID } from "node:crypto";
 
 import type { Prisma, PrismaClient } from "@/src/generated/prisma/client";
 import { WALK_IN_DNI } from "@/src/lib/customer";
-import { replaceProductKardex } from "@/src/lib/kardex/bulk";
+import {
+  BULK_TRANSACTION_TIMEOUT_MS,
+  replaceKardexBulk,
+} from "@/src/lib/kardex/bulk";
 import { recordMovement } from "@/src/lib/kardex/engine";
 import { addDays, limaDateKey, startOfLimaDay } from "@/src/lib/lima-time";
 import { computeSaleTax } from "@/src/lib/tax";
@@ -261,14 +264,12 @@ async function rebuildDemoKardex(
 ) {
   const firstDay = firstHistoryDay(now);
 
-  await db.$transaction(
-    DEMO_PRODUCTS.flatMap((product, index) =>
-      replaceProductKardex(
-        db,
-        productIds[index],
-        planProductKardex(product, index, sales, firstDay, now),
-      ),
-    ),
+  await replaceKardexBulk(
+    db,
+    DEMO_PRODUCTS.map((product, index) => ({
+      productId: productIds[index],
+      movements: planProductKardex(product, index, sales, firstDay, now),
+    })),
   );
 }
 
@@ -316,7 +317,7 @@ async function recordDemoSaleExits(
         });
       }
     }
-  });
+  }, { timeout: BULK_TRANSACTION_TIMEOUT_MS, maxWait: 10_000 });
 }
 
 /**
