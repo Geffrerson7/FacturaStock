@@ -7,7 +7,8 @@ import {
   type ComponentProps,
   type DragEvent,
 } from "react";
-import { FiImage, FiTrash2, FiUploadCloud } from "react-icons/fi";
+import Link from "next/link";
+import { FiImage, FiLayers, FiTrash2, FiUploadCloud } from "react-icons/fi";
 import {
   Avatar,
   Button,
@@ -26,9 +27,11 @@ import {
 
 import type { Category } from "@/src/lib/types/category";
 import type { Product } from "@/src/lib/types/product";
+import { formatQuantity } from "@/src/lib/format";
 import {
   createProductSchema,
   DEFAULT_LOW_STOCK_THRESHOLD,
+  updateProductSchema,
 } from "@/src/lib/validations/product";
 
 type FieldErrors = Record<string, string>;
@@ -260,7 +263,13 @@ export default function ProductForm({
       sku: String(formData.get("sku") ?? ""),
       description: String(formData.get("description") ?? ""),
       price: formData.get("price"),
-      stock: formData.get("stock"),
+      // Al editar, el stock no se envía: solo cambia con el kárdex.
+      ...(product
+        ? {}
+        : {
+            stock: formData.get("stock"),
+            initialCost: formData.get("initialCost"),
+          }),
       lowStockThreshold: formData.get("lowStockThreshold"),
       categoryId,
       isActive,
@@ -268,7 +277,9 @@ export default function ProductForm({
       imagePublicId: image?.publicId ?? null,
     };
 
-    const parsed = createProductSchema.safeParse(values);
+    const parsed = (product ? updateProductSchema : createProductSchema).safeParse(
+      values,
+    );
 
     if (!parsed.success) {
       const fieldErrors: FieldErrors = {};
@@ -388,25 +399,66 @@ export default function ProductForm({
           ) : null}
         </NumberField>
 
+        {product ? (
+          <div className="flex flex-1 flex-col gap-1">
+            <span className="text-sm font-medium text-foreground">Stock</span>
+            <p className="tabular flex h-10 items-center rounded-xl border border-border bg-surface-secondary px-3 text-sm">
+              {formatQuantity(product.stock)}{" "}
+              {product.stock === 1 ? "unidad" : "unidades"}
+            </p>
+            <Link
+              href={`/admin/kardex/nuevo?productId=${product.id}`}
+              className="inline-flex items-center gap-1 text-xs font-medium text-link hover:underline"
+            >
+              <FiLayers aria-hidden />
+              Registrar un movimiento para cambiarlo
+            </Link>
+          </div>
+        ) : (
+          <NumberField
+            name="stock"
+            defaultValue={0}
+            minValue={0}
+            step={1}
+            isRequired
+            className="flex-1"
+          >
+            <Label>Stock inicial</Label>
+            <NumberField.Group>
+              <NumberField.DecrementButton />
+              <NumberField.Input />
+              <NumberField.IncrementButton />
+            </NumberField.Group>
+            {errors.stock ? (
+              <p className="text-sm text-danger">{errors.stock}</p>
+            ) : null}
+          </NumberField>
+        )}
+      </div>
+
+      {product ? null : (
         <NumberField
-          name="stock"
-          defaultValue={product?.stock ?? 0}
+          name="initialCost"
           minValue={0}
-          step={1}
-          isRequired
-          className="flex-1"
+          step={0.01}
+          formatOptions={{ minimumFractionDigits: 0, maximumFractionDigits: 6 }}
         >
-          <Label>Stock</Label>
+          <Label>Costo unitario del stock inicial (opcional)</Label>
           <NumberField.Group>
             <NumberField.DecrementButton />
-            <NumberField.Input />
+            <NumberField.Input placeholder="0.00" />
             <NumberField.IncrementButton />
           </NumberField.Group>
-          {errors.stock ? (
-            <p className="text-sm text-danger">{errors.stock}</p>
+          <Description>
+            Costo de compra por unidad, sin IGV. Si lo dejas vacío, el stock
+            inicial entra a costo 0 y puedes corregirlo después desde el
+            kárdex.
+          </Description>
+          {errors.initialCost ? (
+            <p className="text-sm text-danger">{errors.initialCost}</p>
           ) : null}
         </NumberField>
-      </div>
+      )}
 
       <NumberField
         name="lowStockThreshold"

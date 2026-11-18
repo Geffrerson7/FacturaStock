@@ -74,6 +74,7 @@ export async function getDashboardData(now: Date = new Date()) {
     lowStockProducts,
     recentSales,
     chartSales,
+    inventory,
   ] = await Promise.all([
     prisma.sale.aggregate({
       where: { ...completed, createdAt: { gte: todayStart } },
@@ -120,6 +121,11 @@ export async function getDashboardData(now: Date = new Date()) {
       where: { ...completed, createdAt: { gte: chartStart } },
       select: { createdAt: true, total: true },
     }),
+    // Valor del inventario según el kárdex (costo promedio), de todos los
+    // productos: uno inactivo sigue ocupando el almacén.
+    prisma.product.aggregate({
+      _sum: { inventoryValue: true, stock: true },
+    }),
   ]);
 
   return {
@@ -137,6 +143,10 @@ export async function getDashboardData(now: Date = new Date()) {
       pendingCancellations,
     },
     lowStock: { count: lowStockCount, products: lowStockProducts },
+    inventory: {
+      valueCents: amountToCents(inventory._sum.inventoryValue),
+      units: inventory._sum.stock ?? 0,
+    },
     recentSales,
     salesByDay: bucketSalesByDay(chartSales, chartStart, CHART_DAYS),
   };

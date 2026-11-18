@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Avatar, Button, Chip, toast } from "@heroui/react";
-import { FiEdit2, FiImage, FiTrash2 } from "react-icons/fi";
+import { buttonVariants } from "@heroui/styles";
+import { FiEdit2, FiImage, FiLayers, FiTrash2 } from "react-icons/fi";
 
 import CreateProductModal from "@/components/productos/CreateProductModal";
 import DeleteProductDialog from "@/components/productos/DeleteProductDialog";
@@ -198,6 +200,18 @@ export default function ProductsTable() {
         align: "center",
         cell: (product) => (
           <div className="flex items-center justify-center gap-1">
+            <Link
+              href={`/admin/kardex?productId=${product.id}`}
+              aria-label={`Kárdex de ${product.name}`}
+              title="Ver kárdex"
+              className={buttonVariants({
+                isIconOnly: true,
+                size: "sm",
+                variant: "ghost",
+              })}
+            >
+              <FiLayers aria-hidden />
+            </Link>
             <Button
               isIconOnly
               size="sm"

@@ -23,7 +23,7 @@ Aplicación de inventario y punto de venta construida con **Next.js 16** y **Pos
 - **Dashboard**
   - Ventas de hoy y del mes, comprobantes emitidos en el mes y comprobantes pendientes de emisión.
   - Gráfico de ventas por día de los últimos 30 días (hora de Lima), con tooltip y vista de tabla.
-  - Últimas ventas y productos activos con stock bajo.
+  - Últimas ventas, productos activos con stock bajo y valor del inventario a costo promedio.
   - Se calcula en el servidor en cada petición; solo cuenta ventas completadas.
 
 - **Clientes**
@@ -33,10 +33,17 @@ Aplicación de inventario y punto de venta construida con **Next.js 16** y **Pos
   - Cliente walk-in (`DNI 00000000`) para ventas sin cliente identificado: es un registro del sistema, no aparece en el listado y no se puede editar ni eliminar.
 
 - **Productos**
-  - CRUD con SKU único, precio, stock, categoría y estado activo/inactivo.
+  - CRUD con SKU único, precio, categoría y estado activo/inactivo. El stock inicial (con su costo, opcional) se indica al crear; después solo cambia con movimientos del kárdex.
   - Imagen del producto subida a Cloudinary (archivo, arrastrar y soltar o URL), guardada en la base y mostrada con un avatar en el listado.
-  - Paginación y control de stock.
+  - Paginación y control de stock. Un producto con movimientos en el kárdex no se elimina: se desactiva.
   - Umbral de stock bajo por producto (5 unidades por defecto): el listado marca los productos agotados o con stock bajo y se puede filtrar por ellos.
+
+- **Kárdex**
+  - Un movimiento por cada entrada o salida: saldo inicial, ingresos de mercadería, ajustes positivos y negativos, mermas, ventas, anulaciones y ajustes de valorización.
+  - Valorizado por costo promedio ponderado. El costo en los ingresos es opcional (sugiere el último costo); ajustes y mermas usan el promedio vigente y cada venta sale al promedio del momento, sin cambiar el formulario de venta.
+  - Vista por producto con filtros de fecha (hora de Lima) y tipo, en dos modos: **Físico** (unidades) y **Valorizado** (unidades y soles), con saldo anterior, totales del periodo y saldo final.
+  - Exportación a Excel con la estructura de SUNAT: Formato 13.1 (valorizado) y Formato 12.1 (unidades físicas).
+  - Movimientos manuales con motivo obligatorio; el usuario de demostración puede ver y exportar, pero no registrar.
 
 - **Categorías**
   - Módulo propio con tabla paginada, creación y edición.
@@ -45,7 +52,7 @@ Aplicación de inventario y punto de venta construida con **Next.js 16** y **Pos
 
 - **Ventas**
   - Punto de venta en su propia página (`/admin/ventas/nueva`): buscador de productos y clientes, cantidades editables y desglose de base imponible, IGV y total antes de confirmar. El desglose usa el mismo cálculo que el comprobante.
-  - Descuento automático de stock al registrar la venta.
+  - Descuento automático de stock al registrar la venta, como salida del kárdex.
   - Cada venta guarda su base imponible, IGV y total.
   - Página de detalle con las líneas, el estado del comprobante, los enlaces al PDF, XML y CDR, y las acciones de reintentar, anular y consultar la anulación.
   - Anulación con reposición de stock, protegida contra anulaciones simultáneas.
@@ -127,6 +134,7 @@ Completa los valores en `.env`:
 | `AUTH_ALLOW_SIGNUP` | No | `true` abre el registro en `/register`. Por defecto está cerrado. |
 | `DEMO_USER_EMAIL`, `DEMO_USER_PASSWORD` | No | Credenciales del usuario de demostración (solo lectura). Activan el botón "Entrar como demo" y solo se leen en el servidor. |
 | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | No | Si se definen, `pnpm db:seed` crea un administrador con esas credenciales. |
+| `COMPANY_RUC`, `COMPANY_BUSINESS_NAME`, `COMPANY_ESTABLISHMENT` | En producción, para exportar el kárdex | RUC, razón social y establecimiento de la cabecera del Excel (Formato 13.1). En desarrollo, si faltan, se usan valores de prueba; en producción la exportación falla sin ellos. |
 | `DEMO_DATA_ENABLED` | Solo en la demo | `true` permite que la tarea programada regenere los datos de ejemplo. Sin ella, `/api/cron/demo-data` no toca la base. |
 | `CRON_SECRET` | Solo en la demo | Secreto con el que Vercel llama a `/api/cron/demo-data`. Genera uno con `openssl rand -hex 32`. |
 
@@ -232,6 +240,8 @@ request.
 | `/admin/ventas` | Historial de ventas. |
 | `/admin/ventas/nueva` | Punto de venta. |
 | `/admin/ventas/[id]` | Detalle de una venta y su comprobante. |
+| `/admin/kardex` | Kárdex por producto (físico y valorizado) y exportación a Excel. |
+| `/admin/kardex/nuevo` | Registrar un movimiento manual. |
 
 ## API
 
@@ -245,7 +255,10 @@ request.
 | `GET` | `/api/consulta/ruc` | Consulta los datos de un RUC en SUNAT (Decolecta). |
 | `POST` | `/api/cloudinary/signature` | Firma una subida a la carpeta de productos de Cloudinary. |
 | `GET` / `POST` | `/api/productos` | Lista paginada y crea productos. |
-| `PUT` / `DELETE` | `/api/productos/[id]` | Actualiza y elimina un producto. |
+| `PUT` / `DELETE` | `/api/productos/[id]` | Actualiza (sin tocar el stock) y elimina un producto sin movimientos. |
+| `PUT` | `/api/productos/[id]/costo-inicial` | Corrige el costo del saldo inicial mientras sea el único movimiento del producto. |
+| `GET` / `POST` | `/api/kardex` | Kárdex de un producto (`productId`, `from`, `to`, `type`, paginado) y registro de un movimiento manual. |
+| `GET` | `/api/kardex/export` | Kárdex en `.xlsx` con `mode=fisico` o `mode=valorizado` y los mismos filtros. |
 | `GET` / `POST` | `/api/categorias` | Lista paginada y crea categorías. |
 | `PUT` / `DELETE` | `/api/categorias/[id]` | Actualiza y elimina una categoría. |
 | `GET` / `POST` | `/api/ventas` | Lista paginada y registra ventas (emite comprobante). |
@@ -333,6 +346,24 @@ Las series salen de `NUBEFACT_FACTURA_SERIES` y `NUBEFACT_BOLETA_SERIES`. La pri
 Cada venta guarda `taxable_amount` (base imponible) e `igv_amount`, calculados con el mismo redondeo por línea que se envía a Nubefact, de modo que base + IGV = total.
 
 Al anular, el cambio de estado de la venta es condicional (`UPDATE … WHERE status = 'COMPLETADA'`) y el stock solo se repone si esa actualización afectó una fila: dos anulaciones simultáneas no lo reponen dos veces.
+
+## Kárdex
+
+Toda entrada o salida de stock pasa por `recordMovement` (`src/lib/kardex/engine.ts`), dentro de la transacción de quien la origina. El motor bloquea la fila del producto (`SELECT … FOR UPDATE`), calcula el nuevo saldo, inserta el movimiento en `stock_movements` con el siguiente correlativo del producto y actualiza `stock`, `average_cost`, `inventory_value` y `last_cost`. Ningún otro código escribe esas columnas, y el correlativo único por producto hace fallar dos escrituras simultáneas en lugar de descuadrar el saldo.
+
+| Tipo | Dirección | Tabla 12 SUNAT | Costo unitario |
+| --- | --- | --- | --- |
+| Saldo inicial | Entrada | 16 | El indicado o el último costo |
+| Ingreso | Entrada | 99 (02 cuando venga de una compra) | El indicado o el último costo |
+| Ajuste positivo | Entrada | 99 | Promedio vigente |
+| Venta | Salida | 01 | Promedio vigente |
+| Anulación de venta | Entrada | 05 | El de la salida original |
+| Ajuste negativo / Merma | Salida | 99 / 13 | Promedio vigente |
+| Ajuste de valorización | Sin unidades | 99 | Nuevo costo promedio |
+
+Cada fila guarda el saldo después del movimiento (cantidad, costo promedio y valor), así el saldo anterior a cualquier fecha se lee sin recalcular. Al llegar a 0 unidades el valor se fuerza a 0 para no dejar céntimos residuales. Los movimientos llevan una referencia (`reference_type`, `reference_id`) pensada para que un futuro módulo de compras inserte sus ingresos en el mismo motor.
+
+La migración `add_stock_movements` crea un saldo inicial a costo 0 por cada producto con stock. Mientras sea su único movimiento, su costo se corrige desde el kárdex; después, con un ajuste de valorización.
 
 La referencia es la documentación de la API JSON de Nubefact (versión 1), que Nubefact entrega con la cuenta.
 

@@ -9,6 +9,7 @@ import {
   FiArrowRight,
   FiCalendar,
   FiFileText,
+  FiLayers,
   FiPlus,
   FiShoppingBag,
 } from "react-icons/fi";
@@ -71,7 +72,7 @@ async function DashboardContent() {
       <SalesChart days={data.salesByDay} />
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <RecentSales sales={data.recentSales} />
-        <LowStock lowStock={data.lowStock} />
+        <LowStock lowStock={data.lowStock} inventory={data.inventory} />
       </div>
     </div>
   );
@@ -271,7 +272,13 @@ function RecentSales({ sales }: { sales: DashboardData["recentSales"] }) {
   );
 }
 
-function LowStock({ lowStock }: { lowStock: DashboardData["lowStock"] }) {
+function LowStock({
+  lowStock,
+  inventory,
+}: {
+  lowStock: DashboardData["lowStock"];
+  inventory: DashboardData["inventory"];
+}) {
   const hidden = lowStock.count - lowStock.products.length;
 
   return (
@@ -282,6 +289,24 @@ function LowStock({ lowStock }: { lowStock: DashboardData["lowStock"] }) {
         href="/admin/productos"
         linkLabel="Ver productos"
       />
+      <Link
+        href="/admin/kardex"
+        className="flex items-center justify-between gap-3 border-b border-separator bg-surface-secondary/60 px-4 py-3 transition-colors hover:bg-surface-secondary focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus sm:px-5"
+      >
+        <span className="flex items-center gap-2 text-sm text-muted">
+          <FiLayers aria-hidden className="size-4" />
+          Valor del inventario
+        </span>
+        <span className="tabular text-right">
+          <span className="block text-sm font-semibold text-foreground">
+            {formatCents(inventory.valueCents)}
+          </span>
+          <span className="block text-xs text-muted">
+            {inventory.units} {inventory.units === 1 ? "unidad" : "unidades"} a
+            costo promedio
+          </span>
+        </span>
+      </Link>
       {lowStock.products.length === 0 ? (
         <p className="px-4 py-8 text-center text-sm text-muted sm:px-5">
           Todos los productos activos tienen stock suficiente.

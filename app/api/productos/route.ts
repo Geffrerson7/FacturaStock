@@ -10,6 +10,7 @@ import {
   parseSearchParams,
 } from "@/src/lib/api/request";
 import { requireSession } from "@/src/lib/api/session";
+import { recordMovement } from "@/src/lib/kardex/engine";
 import { prisma } from "@/src/lib/prisma";
 import {
   createProductSchema,
@@ -58,7 +59,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await requireSession(request);
+    const user = await requireSession(request);
 
     const data = await parseJsonBody(request, createProductSchema);
 
@@ -71,9 +72,32 @@ export async function POST(request: Request) {
       throw categoryNotFound();
     }
 
-    const product = await prisma.product.create({
-      data,
-      include: { category: true },
+    const { stock, initialCost, ...productData } = data;
+
+    // El producto nace sin stock; el stock inicial entra como el primer
+    // movimiento del kárdex, en la misma transacción.
+    const product = await prisma.$transaction(async (tx) => {
+      const created = await tx.product.create({
+        data: productData,
+        select: { id: true },
+      });
+
+      if (stock > 0) {
+        await recordMovement(tx, {
+          productId: created.id,
+          type: "SALDO_INICIAL",
+          quantity: stock,
+          unitCost: initialCost,
+          referenceType: "MANUAL",
+          reason: "Stock inicial del producto",
+          userId: user.id,
+        });
+      }
+
+      return tx.product.findUniqueOrThrow({
+        where: { id: created.id },
+        include: { category: true },
+      });
     });
 
     return Response.json({ data: product }, { status: 201 });

@@ -15,6 +15,33 @@ const dateFormatter = new Intl.DateTimeFormat("es-PE", {
   timeZone: LIMA_TIME_ZONE,
 });
 
+// Costos unitarios y promedios: al menos 2 decimales y hasta los 6 que guarda
+// el kárdex.
+const costFormatter = new Intl.NumberFormat("es-PE", {
+  style: "currency",
+  currency: "PEN",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 6,
+});
+
+const quantityFormatter = new Intl.NumberFormat("es-PE", {
+  maximumFractionDigits: 0,
+});
+
+/** Costo unitario con hasta 6 decimales: S/ 2.833333. */
+export function formatCost(value: string | number): string {
+  const amount = typeof value === "number" ? value : Number(value);
+
+  if (!Number.isFinite(amount)) return "—";
+
+  return costFormatter.format(amount);
+}
+
+/** Unidades con separador de miles. */
+export function formatQuantity(value: number): string {
+  return quantityFormatter.format(value);
+}
+
 export function formatCurrency(value: string | number): string {
   const amount = typeof value === "number" ? value : Number(value);
 

@@ -8,6 +8,7 @@ const db = vi.hoisted(() => ({
   product: {
     count: vi.fn(),
     findMany: vi.fn(),
+    aggregate: vi.fn(),
     fields: { lowStockThreshold: LOW_STOCK_FIELD },
   },
 }));
@@ -158,6 +159,9 @@ describe("datos del dashboard", () => {
       .mockResolvedValueOnce(1);
     db.product.count.mockResolvedValue(4);
     db.product.findMany.mockResolvedValue([]);
+    db.product.aggregate.mockResolvedValue({
+      _sum: { inventoryValue: "1534.27", stock: 412 },
+    });
     db.sale.findMany
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
@@ -176,6 +180,7 @@ describe("datos del dashboard", () => {
       pendingCancellations: 1,
     });
     expect(data.lowStock.count).toBe(4);
+    expect(data.inventory).toEqual({ valueCents: 153427, units: 412 });
     expect(data.salesByDay).toHaveLength(CHART_DAYS);
     expect(data.salesByDay.at(-1)).toEqual({
       date: "2026-11-15",

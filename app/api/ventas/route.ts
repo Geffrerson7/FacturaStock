@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { Prisma } from "@/src/generated/prisma/client";
 import { ApiError, handleApiError } from "@/src/lib/api/errors";
 import { emitSaleInvoice } from "@/src/lib/api/invoice";
@@ -12,6 +14,7 @@ import {
   buildSaleWhere,
   SALE_INCLUDE,
 } from "@/src/lib/api/sale";
+import { recordMovement } from "@/src/lib/kardex/engine";
 import { prisma } from "@/src/lib/prisma";
 import { buildNubefactItems, resolveInvoiceIdentity } from "@/src/lib/nubefact";
 import {
@@ -46,7 +49,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await requireSession(request);
+    const user = await requireSession(request);
 
     const data = await parseJsonBody(request, createSaleSchema);
 
@@ -74,7 +77,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const productIds = [...quantities.keys()];
+    const productIds = [...quantities.keys()].sort();
 
     const sale = await prisma.$transaction(async (tx) => {
       const products = await tx.product.findMany({
@@ -117,22 +120,39 @@ export async function POST(request: Request) {
         }
       }
 
-      for (const [productId, quantity] of quantities) {
-        const result = await tx.product.updateMany({
-          where: { id: productId, stock: { gte: quantity } },
-          data: { stock: { decrement: quantity } },
-        });
+      // El comprobante se reserva en la misma transacción que la venta.
+      const identity = resolveInvoiceIdentity(customer);
+      const counter = await tx.invoiceCounter.upsert({
+        where: { series: identity.series },
+        create: {
+          series: identity.series,
+          nextNumber: identity.initialNumber + 1,
+        },
+        update: { nextNumber: { increment: 1 } },
+        select: { nextNumber: true },
+      });
+      const invoiceNumber = counter.nextNumber - 1;
+      const saleId = randomUUID();
 
-        // Otra venta pudo consumir el stock entre la lectura y la escritura.
-        if (result.count === 0) {
-          const product = productById.get(productId)!;
-          throw new ApiError(
-            409,
-            "INSUFFICIENT_STOCK",
-            `No hay stock suficiente de "${product.name}". Otra venta acaba de consumirlo.`,
-            { field: "items" },
-          );
-        }
+      // Una salida del kárdex por producto, al costo promedio vigente. El
+      // motor bloquea la fila del producto y vuelve a comprobar el stock: si
+      // otra venta lo consumió entre la lectura y aquí, responde 409. Los
+      // productos se recorren en orden para que dos ventas simultáneas los
+      // bloqueen en el mismo orden y no se esperen entre sí.
+      for (const productId of productIds) {
+        await recordMovement(tx, {
+          productId,
+          type: "VENTA",
+          quantity: quantities.get(productId)!,
+          referenceType: "SALE",
+          referenceId: saleId,
+          document: {
+            type: identity.documentType === "FACTURA" ? "01" : "03",
+            series: identity.series,
+            number: invoiceNumber,
+          },
+          userId: user.id,
+        });
       }
 
       // Una línea por producto, con el precio y el nombre como snapshot.
@@ -165,21 +185,9 @@ export async function POST(request: Request) {
         })),
       );
 
-      // El comprobante se reserva en la misma transacción que la venta.
-      const identity = resolveInvoiceIdentity(customer);
-      const counter = await tx.invoiceCounter.upsert({
-        where: { series: identity.series },
-        create: {
-          series: identity.series,
-          nextNumber: identity.initialNumber + 1,
-        },
-        update: { nextNumber: { increment: 1 } },
-        select: { nextNumber: true },
-      });
-      const invoiceNumber = counter.nextNumber - 1;
-
       return tx.sale.create({
         data: {
+          id: saleId,
           customerId: data.customerId,
           taxableAmount: amounts.totalGravada,
           igvAmount: amounts.totalIgv,

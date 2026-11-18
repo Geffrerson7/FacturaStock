@@ -116,6 +116,20 @@ export async function DELETE(
     const { id } = await ctx.params;
     const productId = parseProductId(id);
 
+    // El kárdex es un registro contable: un producto con movimientos no se
+    // borra, se desactiva.
+    const movements = await prisma.stockMovement.count({
+      where: { productId },
+    });
+
+    if (movements > 0) {
+      throw new ApiError(
+        409,
+        "PRODUCT_HAS_MOVEMENTS",
+        "El producto tiene movimientos en el kárdex y no se puede eliminar. Desactívalo para que no aparezca en las ventas.",
+      );
+    }
+
     try {
       const deleted = await prisma.product.delete({
         where: { id: productId },

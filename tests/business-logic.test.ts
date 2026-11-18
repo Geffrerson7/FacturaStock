@@ -12,7 +12,11 @@ const db = vi.hoisted(() => {
     update: vi.fn(),
     updateMany: vi.fn(),
     delete: vi.fn(),
+    deleteMany: vi.fn(),
     upsert: vi.fn(),
+    aggregate: vi.fn(),
+    groupBy: vi.fn(),
+    findFirst: vi.fn(),
   });
 
   return {
@@ -22,7 +26,10 @@ const db = vi.hoisted(() => {
     category: model(),
     invoice: model(),
     invoiceCounter: model(),
+    stockMovement: model(),
     $transaction: vi.fn(),
+    // SELECT ... FOR UPDATE del motor del kárdex.
+    $queryRaw: vi.fn(),
   };
 });
 
@@ -107,6 +114,15 @@ beforeEach(() => {
       : Promise.all(argument as Promise<unknown>[]),
   );
 
+  // Kárdex vacío por defecto: el motor crea el primer movimiento.
+  db.stockMovement.aggregate.mockResolvedValue({ _max: { sequence: null } });
+  db.stockMovement.findMany.mockResolvedValue([]);
+  db.stockMovement.count.mockResolvedValue(0);
+  db.stockMovement.create.mockImplementation(async ({ data }) => ({
+    id: "movement-1",
+    ...data,
+  }));
+
   vi.stubEnv("NUBEFACT_API_URL", "https://nubefact.test/api");
   vi.stubEnv("NUBEFACT_API_TOKEN", "token");
   vi.stubEnv("NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME", "demo-cloud");
@@ -156,9 +172,19 @@ describe("anulación de una venta (N1)", () => {
       state.saleStatus = data.status;
       return { count: 1 };
     });
-    db.product.updateMany.mockImplementation(async ({ data }) => {
-      state.stock += data.stock.increment;
-      return { count: 1 };
+    // El motor del kárdex lee el saldo bloqueando la fila y lo reescribe.
+    db.$queryRaw.mockImplementation(async () => [
+      {
+        name: "Agua mineral 500 ml",
+        stock: state.stock,
+        last_cost: "1.20",
+        average_cost: "1.20",
+        inventory_value: (state.stock * 1.2).toFixed(2),
+      },
+    ]);
+    db.product.update.mockImplementation(async ({ data }) => {
+      state.stock = data.stock;
+      return {};
     });
     db.invoice.update.mockImplementation(async ({ data }) => {
       state.invoiceStatus = data.status;
@@ -212,7 +238,7 @@ describe("anulación de una venta (N1)", () => {
 
     expect(statuses).toEqual([200, 409]);
     expect(db.sale.findUnique).toHaveBeenCalledTimes(2);
-    expect(db.product.updateMany).toHaveBeenCalledTimes(1);
+    expect(db.stockMovement.create).toHaveBeenCalledTimes(1);
     expect(state.stock).toBe(10);
     expect(state.saleStatus).toBe("ANULADA");
 
@@ -671,7 +697,15 @@ function mockSaleCreation() {
       isActive: true,
     },
   ]);
-  db.product.updateMany.mockResolvedValue({ count: 1 });
+  db.$queryRaw.mockResolvedValue([
+    {
+      name: "Detergente 1 kg",
+      stock: 50,
+      last_cost: "6.00",
+      average_cost: "6.00",
+      inventory_value: "300.00",
+    },
+  ]);
   db.invoiceCounter.upsert.mockImplementation(async ({ create }) => ({
     nextNumber: create.nextNumber,
   }));
