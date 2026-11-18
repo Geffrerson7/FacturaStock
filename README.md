@@ -4,7 +4,7 @@ Aplicación de inventario y punto de venta construida con **Next.js 16** y **Pos
 
 **Demo:** [factura-stock.vercel.app](https://factura-stock.vercel.app). Pulsa **Entrar como demo**: no hace falta contraseña. Es una cuenta de solo lectura con datos de ejemplo (ver [Demo pública](#demo-pública)).
 
-![Dashboard con las ventas del día y del mes, el gráfico de ventas por día, las últimas ventas y los productos con stock bajo](docs/screenshots/dashboard.png)
+![Dashboard con las ventas del día y del mes, el gráfico de ventas por día, las últimas ventas, el valor del inventario y los productos con stock bajo](docs/screenshots/dashboard.png)
 
 | Punto de venta | Detalle de una venta |
 | --- | --- |
@@ -12,7 +12,7 @@ Aplicación de inventario y punto de venta construida con **Next.js 16** y **Pos
 
 | Productos | Ventas |
 | --- | --- |
-| ![Tabla de productos con ilustración, categoría, precio y avisos de stock bajo o agotado](docs/screenshots/productos.png) | ![Historial de ventas con búsqueda y filtros por estado de la venta y del comprobante](docs/screenshots/ventas.png) |
+| ![Tabla de productos con ilustración, categoría, precio, avisos de stock bajo o agotado y acceso al kárdex de cada producto](docs/screenshots/productos.png) | ![Historial de ventas con búsqueda y filtros por estado de la venta y del comprobante](docs/screenshots/ventas.png) |
 
 | Inicio de sesión | Modo oscuro | Móvil |
 | --- | --- | --- |
