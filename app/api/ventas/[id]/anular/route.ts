@@ -9,6 +9,7 @@ import {
   saleAlreadyCancelled,
   saleNotFound,
 } from "@/src/lib/api/sale";
+import { recordMovement } from "@/src/lib/kardex/engine";
 import { prisma } from "@/src/lib/prisma";
 import { sendNubefactCancellation } from "@/src/lib/nubefact";
 
@@ -17,7 +18,7 @@ export async function POST(
   ctx: RouteContext<"/api/ventas/[id]/anular">,
 ) {
   try {
-    await requireSession(request);
+    const user = await requireSession(request);
 
     const { id } = await ctx.params;
     const saleId = parseSaleId(id);
@@ -68,13 +69,45 @@ export async function POST(
         throw saleAlreadyCancelled();
       }
 
-      // Devuelve el stock solo de los productos que aún existen.
-      for (const item of existing.items) {
-        if (!item.productId) continue;
+      // Cada salida de la venta vuelve al kárdex como entrada, al mismo costo
+      // con que salió (no al promedio actual). Las ventas anteriores al
+      // kárdex no tienen salida: entran al promedio vigente.
+      const exits = await tx.stockMovement.findMany({
+        where: { referenceType: "SALE", referenceId: saleId, type: "VENTA" },
+        select: { id: true, productId: true, unitCost: true },
+      });
+      const exitByProduct = new Map(exits.map((exit) => [exit.productId, exit]));
 
-        await tx.product.updateMany({
-          where: { id: item.productId },
-          data: { stock: { increment: item.quantity } },
+      const returned = new Map<string, number>();
+      for (const item of existing.items) {
+        // Un producto borrado antes del kárdex ya no puede recibir stock.
+        if (!item.productId) continue;
+        returned.set(
+          item.productId,
+          (returned.get(item.productId) ?? 0) + item.quantity,
+        );
+      }
+
+      for (const productId of [...returned.keys()].sort()) {
+        const exit = exitByProduct.get(productId);
+
+        await recordMovement(tx, {
+          productId,
+          type: "ANULACION_VENTA",
+          quantity: returned.get(productId)!,
+          unitCost: exit?.unitCost ?? null,
+          referenceType: "SALE_CANCELLATION",
+          referenceId: saleId,
+          reversesMovementId: exit?.id ?? null,
+          document: existing.invoice
+            ? {
+                type: existing.invoice.documentType === "FACTURA" ? "01" : "03",
+                series: existing.invoice.series,
+                number: existing.invoice.number,
+              }
+            : undefined,
+          reason: `Anulación de la venta #${existing.number}`,
+          userId: user.id,
         });
       }
 

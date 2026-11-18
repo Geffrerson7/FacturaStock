@@ -65,6 +65,11 @@ model Product {
   stock             Int      @default(0)
   // El producto tiene "stock bajo" cuando stock <= lowStockThreshold.
   lowStockThreshold Int      @default(5) @map("low_stock_threshold")
+  // Valorización del inventario (kárdex por costo promedio ponderado). Solo
+  // las escribe el motor del kárdex (src/lib/kardex), igual que `stock`.
+  lastCost          Decimal  @default(0) @map("last_cost") @db.Decimal(14, 6)
+  averageCost       Decimal  @default(0) @map("average_cost") @db.Decimal(14, 6)
+  inventoryValue    Decimal  @default(0) @map("inventory_value") @db.Decimal(14, 2)
   isActive          Boolean  @default(true) @map("is_active")
   imageUrl          String?  @map("image_url") @db.VarChar(500)
   imagePublicId     String?  @map("image_public_id") @db.VarChar(255)
@@ -72,8 +77,9 @@ model Product {
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
-  category  Category   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  saleItems SaleItem[]
+  category       Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  saleItems      SaleItem[]
+  stockMovements StockMovement[]
 
   @@index([categoryId])
   @@map("products")
@@ -180,6 +186,82 @@ model Invoice {
 }
 
 // ---------------------------------------------------------------------------
+// Kárdex
+// ---------------------------------------------------------------------------
+// Cada entrada o salida de stock es una fila. El saldo (cantidad, costo
+// promedio y valor) después del movimiento se guarda en la misma fila, así el
+// saldo anterior a cualquier fecha se lee sin recalcular. Compatible con el
+// Formato 13.1 de SUNAT (registro de inventario permanente valorizado).
+
+enum StockMovementType {
+  SALDO_INICIAL
+  INGRESO
+  AJUSTE_POSITIVO
+  VENTA
+  ANULACION_VENTA
+  AJUSTE_NEGATIVO
+  MERMA
+  // Cambia el valor y el costo promedio, no las unidades.
+  AJUSTE_VALORIZACION
+}
+
+enum StockMovementDirection {
+  ENTRADA
+  SALIDA
+  NINGUNA
+}
+
+// Origen del movimiento. PURCHASE queda reservado para el módulo de compras.
+enum StockReferenceType {
+  MANUAL
+  SALE
+  SALE_CANCELLATION
+  PURCHASE
+}
+
+model StockMovement {
+  id                 String                 @id @default(uuid()) @db.Uuid
+  productId          String                 @map("product_id") @db.Uuid
+  // Correlativo por producto: fija el orden del kárdex y hace fallar dos
+  // escrituras simultáneas en lugar de descuadrar el saldo.
+  sequence           Int
+  type               StockMovementType
+  direction          StockMovementDirection
+  // Tabla 12 de SUNAT (tipo de operación), guardada para que el historial no
+  // cambie si cambia el mapeo.
+  sunatOperationCode String                 @map("sunat_operation_code") @db.VarChar(2)
+  quantity           Int
+  unitCost           Decimal                @map("unit_cost") @db.Decimal(14, 6)
+  // Con signo en los ajustes de valorización; positivo en el resto.
+  totalCost          Decimal                @map("total_cost") @db.Decimal(14, 2)
+  balanceQuantity    Int                    @map("balance_quantity")
+  balanceAverageCost Decimal                @map("balance_average_cost") @db.Decimal(14, 6)
+  balanceValue       Decimal                @map("balance_value") @db.Decimal(14, 2)
+  // Tabla 10 de SUNAT: 01 factura, 03 boleta, 00 otros.
+  documentType       String                 @default("00") @map("document_type") @db.VarChar(2)
+  documentSeries     String?                @map("document_series") @db.VarChar(4)
+  documentNumber     Int?                   @map("document_number")
+  referenceType      StockReferenceType     @map("reference_type")
+  referenceId        String?                @map("reference_id") @db.Uuid
+  // Salida que revierte esta entrada (anulación de una venta).
+  reversesMovementId String?                @map("reverses_movement_id") @db.Uuid
+  reason             String?                @db.VarChar(255)
+  userId             String?                @map("user_id")
+  occurredAt         DateTime               @default(now()) @map("occurred_at")
+  createdAt          DateTime               @default(now()) @map("created_at")
+
+  product          Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  user             User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  reversesMovement StockMovement?  @relation("MovementReversal", fields: [reversesMovementId], references: [id], onDelete: SetNull)
+  reversals        StockMovement[] @relation("MovementReversal")
+
+  @@unique([productId, sequence])
+  @@index([productId, occurredAt])
+  @@index([referenceType, referenceId])
+  @@map("stock_movements")
+}
+
+// ---------------------------------------------------------------------------
 // Autenticación (Better Auth)
 // ---------------------------------------------------------------------------
 // Los nombres de los modelos y de los campos son los que espera Better Auth;
@@ -201,8 +283,9 @@ model User {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  sessions Session[]
-  accounts Account[]
+  sessions       Session[]
+  accounts       Account[]
+  stockMovements StockMovement[]
 
   @@map("users")
 }

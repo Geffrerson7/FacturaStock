@@ -10,6 +10,10 @@ export type Product = {
   stock: number;
   /** Con `stock <= lowStockThreshold` el producto tiene stock bajo. */
   lowStockThreshold: number;
+  /** Último costo de entrada, costo promedio y valor del inventario. */
+  lastCost: string;
+  averageCost: string;
+  inventoryValue: string;
   isActive: boolean;
   imageUrl: string | null;
   imagePublicId: string | null;

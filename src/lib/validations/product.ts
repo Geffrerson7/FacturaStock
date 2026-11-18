@@ -65,6 +65,25 @@ const optionalImagePublicId = z
   )
   .transform((value) => value ?? null);
 
+/**
+ * Costo unitario opcional (sin IGV), hasta 6 decimales. Un campo vacío es
+ * "sin costo": el motor del kárdex decide qué costo usar.
+ */
+export const unitCostField = z.preprocess(
+  emptyToNull,
+  z.coerce
+    .number("El costo debe ser un número válido.")
+    .min(0, "El costo no puede ser negativo.")
+    .max(99999999, "El costo es demasiado alto.")
+    .nullable()
+    .optional()
+    .transform((value) =>
+      value === null || value === undefined
+        ? null
+        : Math.round(value * 1e6) / 1e6,
+    ),
+);
+
 export const createProductSchema = z.object({
   name: z
     .string("El nombre del producto es obligatorio.")
@@ -81,11 +100,16 @@ export const createProductSchema = z.object({
     .number("El precio debe ser un número válido.")
     .min(0, "El precio no puede ser negativo.")
     .max(99999999.99, "El precio es demasiado alto."),
+  // Stock inicial: solo al crear. Después el stock cambia únicamente con
+  // movimientos del kárdex.
   stock: z.coerce
     .number("El stock debe ser un número válido.")
     .int("El stock debe ser un número entero.")
     .min(0, "El stock no puede ser negativo.")
     .max(1000000, "El stock es demasiado alto."),
+  // Costo unitario del stock inicial. Opcional: sin él, el saldo inicial
+  // entra a costo 0 y se puede corregir después.
+  initialCost: unitCostField,
   lowStockThreshold: z.coerce
     .number("El umbral de stock bajo debe ser un número válido.")
     .int("El umbral de stock bajo debe ser un número entero.")
@@ -98,7 +122,11 @@ export const createProductSchema = z.object({
   imagePublicId: optionalImagePublicId,
 });
 
-export const updateProductSchema = createProductSchema;
+// Al editar no se acepta `stock` ni `initialCost`: si llegan, se descartan.
+export const updateProductSchema = createProductSchema.omit({
+  stock: true,
+  initialCost: true,
+});
 
 export const PRODUCT_SORT_FIELDS = [
   "createdAt",
@@ -121,4 +149,5 @@ export const listProductsQuerySchema = z.object({
 });
 
 export type CreateProductInput = z.infer<typeof createProductSchema>;
+export type UpdateProductInput = z.infer<typeof updateProductSchema>;
 export type ListProductsQuery = z.infer<typeof listProductsQuerySchema>;

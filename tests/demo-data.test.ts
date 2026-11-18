@@ -129,10 +129,22 @@ describe("sincronización de la demo", () => {
   const db = {
     sale: { aggregate: vi.fn(), deleteMany: vi.fn(), createMany: vi.fn() },
     saleItem: { createMany: vi.fn() },
-    product: { upsert: vi.fn(), findMany: vi.fn() },
+    product: {
+      upsert: vi.fn(),
+      findMany: vi.fn(),
+      update: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
+    },
     customer: { upsert: vi.fn(), findMany: vi.fn() },
     category: { upsert: vi.fn() },
+    stockMovement: {
+      deleteMany: vi.fn(),
+      createMany: vi.fn(),
+      aggregate: vi.fn(),
+      create: vi.fn(),
+    },
     $transaction: vi.fn(),
+    $queryRaw: vi.fn(),
   };
 
   beforeEach(() => {
@@ -146,7 +158,16 @@ describe("sincronización de la demo", () => {
     );
     db.sale.createMany.mockReturnValue("sales");
     db.saleItem.createMany.mockReturnValue("items");
-    db.$transaction.mockResolvedValue([]);
+    db.stockMovement.deleteMany.mockReturnValue("delete-movements");
+    db.stockMovement.createMany.mockReturnValue("create-movements");
+    db.product.update.mockReturnValue("update-product");
+    // Una lista de consultas se resuelve sin más; una función recibe el
+    // cliente, como en Prisma.
+    db.$transaction.mockImplementation((argument: unknown) =>
+      typeof argument === "function"
+        ? (argument as (tx: typeof db) => unknown)(db)
+        : Promise.resolve([]),
+    );
   });
 
   it("sin ventas de ejemplo hace el reinicio completo", async () => {
@@ -203,11 +224,35 @@ describe("sincronización de la demo", () => {
       })),
     );
 
+    db.product.findUniqueOrThrow.mockResolvedValue({ stock: 100 });
+    db.$queryRaw.mockResolvedValue([
+      {
+        name: "Producto",
+        stock: 100,
+        last_cost: "1",
+        average_cost: "1",
+        inventory_value: "100",
+      },
+    ]);
+    db.stockMovement.aggregate.mockResolvedValue({ _max: { sequence: 10 } });
+    db.stockMovement.create.mockResolvedValue({ id: "movement" });
+    db.product.update.mockResolvedValue({});
+
     const result = await syncDemoData(db as never, now);
     const expected = planDemoSales(first, now).length - done.length;
 
     expect(result).toEqual({ action: "append", salesCreated: expected });
     expect(db.sale.deleteMany).not.toHaveBeenCalled();
     expect(db.product.upsert).not.toHaveBeenCalled();
+    expect(db.stockMovement.deleteMany).not.toHaveBeenCalled();
+
+    // Una salida del kárdex por cada línea de las ventas nuevas.
+    const lines = planDemoSales(first, now)
+      .slice(done.length)
+      .reduce((sum, sale) => sum + sale.items.length, 0);
+    const exits = db.stockMovement.create.mock.calls.filter(
+      ([args]) => args.data.type === "VENTA",
+    );
+    expect(exits).toHaveLength(lines);
   });
 });

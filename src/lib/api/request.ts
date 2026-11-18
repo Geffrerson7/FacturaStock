@@ -5,26 +5,31 @@ import { ApiError } from "./errors";
 // Los mensajes que Zod genera por su cuenta (tipos, enums...) salen en español.
 z.config(z.locales.es());
 
+/** Metadatos de paginación de un listado. */
+export function paginationMeta(
+  total: number,
+  { page, pageSize }: { page: number; pageSize: number },
+) {
+  const totalPages = Math.ceil(total / pageSize);
+
+  return {
+    page,
+    pageSize,
+    total,
+    totalPages,
+    hasNextPage: page < totalPages,
+    hasPreviousPage: page > 1,
+  };
+}
+
 /** Respuesta de un listado paginado. */
 export function paginatedResponse<T>(
   data: T[],
   total: number,
-  { page, pageSize }: { page: number; pageSize: number },
+  options: { page: number; pageSize: number },
 ): Response {
-  const totalPages = Math.ceil(total / pageSize);
-
   return Response.json(
-    {
-      data,
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages,
-        hasNextPage: page < totalPages,
-        hasPreviousPage: page > 1,
-      },
-    },
+    { data, pagination: paginationMeta(total, options) },
     { status: 200 },
   );
 }

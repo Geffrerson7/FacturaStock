@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 
 import type { Prisma, PrismaClient } from "@/src/generated/prisma/client";
 import { WALK_IN_DNI } from "@/src/lib/customer";
+import { replaceProductKardex } from "@/src/lib/kardex/bulk";
+import { recordMovement } from "@/src/lib/kardex/engine";
 import { addDays, limaDateKey, startOfLimaDay } from "@/src/lib/lima-time";
 import { computeSaleTax } from "@/src/lib/tax";
 
@@ -12,6 +14,11 @@ import {
   demoProductImagePath,
   type DemoCustomer,
 } from "./catalog";
+import {
+  demoProductCost,
+  planProductKardex,
+  type DemoKardexSale,
+} from "./kardex";
 import { DEMO_HISTORY_DAYS, planDemoSales, type PlannedSale } from "./plan";
 
 /**
@@ -64,8 +71,9 @@ function customerData(customer: DemoCustomer) {
 }
 
 /**
- * Deja categorías, productos y clientes como en el catálogo: precio, stock,
- * umbral e imagen vuelven a sus valores. Los registros que no son del
+ * Deja categorías, productos y clientes como en el catálogo: precio, umbral
+ * e imagen vuelven a sus valores. El stock no se escribe aquí: lo deja el
+ * kárdex de la demo (`rebuildDemoKardex`). Los registros que no son del
  * catálogo no se tocan.
  */
 async function restoreCatalog(db: PrismaClient): Promise<CatalogIds> {
@@ -97,7 +105,6 @@ async function restoreCatalog(db: PrismaClient): Promise<CatalogIds> {
         name: product.name,
         description: product.description,
         price: product.price,
-        stock: product.stock,
         lowStockThreshold: product.lowStockThreshold,
         isActive: true,
         imageUrl: demoProductImagePath(product.sku),
@@ -174,19 +181,24 @@ async function readCatalogIds(db: PrismaClient): Promise<CatalogIds> {
   };
 }
 
-/** Guarda las ventas planificadas con sus líneas, en orden cronológico. */
+/**
+ * Guarda las ventas planificadas con sus líneas, en orden cronológico, y
+ * las devuelve con su id para registrar sus salidas en el kárdex.
+ */
 async function insertSales(
   db: PrismaClient,
   planned: PlannedSale[],
   { productIds, customerIds }: CatalogIds,
-): Promise<number> {
-  if (planned.length === 0) return 0;
+): Promise<DemoKardexSale[]> {
+  if (planned.length === 0) return [];
 
+  const inserted: DemoKardexSale[] = [];
   const sales: Prisma.SaleCreateManyInput[] = [];
   const items: Prisma.SaleItemCreateManyInput[] = [];
 
   for (const sale of planned) {
     const saleId = randomUUID();
+    inserted.push({ id: saleId, createdAt: sale.createdAt, items: sale.items });
     const lines = sale.items.map(({ productIndex, quantity }) => ({
       product: DEMO_PRODUCTS[productIndex],
       productId: productIds[productIndex],
@@ -232,7 +244,79 @@ async function insertSales(
     db.saleItem.createMany({ data: items }),
   ]);
 
-  return sales.length;
+  return inserted;
+}
+
+/**
+ * Reemplaza el kárdex de los productos de la demo por uno calculado desde
+ * el primer día de la historia: saldo inicial, reposiciones semanales y las
+ * salidas de las ventas de ejemplo. Cada producto termina con el stock del
+ * catálogo.
+ */
+async function rebuildDemoKardex(
+  db: PrismaClient,
+  sales: DemoKardexSale[],
+  { productIds }: CatalogIds,
+  now: Date,
+) {
+  const firstDay = firstHistoryDay(now);
+
+  await db.$transaction(
+    DEMO_PRODUCTS.flatMap((product, index) =>
+      replaceProductKardex(
+        db,
+        productIds[index],
+        planProductKardex(product, index, sales, firstDay, now),
+      ),
+    ),
+  );
+}
+
+/**
+ * Salidas de las ventas agregadas en una sincronización horaria. Si a un
+ * producto no le alcanza el stock, primero entra una reposición que lo deja
+ * con el stock del catálogo después de la venta.
+ */
+async function recordDemoSaleExits(
+  db: PrismaClient,
+  sales: DemoKardexSale[],
+  { productIds }: CatalogIds,
+) {
+  if (sales.length === 0) return;
+
+  await db.$transaction(async (tx) => {
+    for (const sale of sales) {
+      for (const item of sale.items) {
+        const product = DEMO_PRODUCTS[item.productIndex];
+        const productId = productIds[item.productIndex];
+        const current = await tx.product.findUniqueOrThrow({
+          where: { id: productId },
+          select: { stock: true },
+        });
+
+        if (current.stock < item.quantity) {
+          await recordMovement(tx, {
+            productId,
+            type: "INGRESO",
+            quantity: item.quantity - current.stock + product.stock,
+            unitCost: demoProductCost(product),
+            referenceType: "MANUAL",
+            reason: "Reposición automática de la demo",
+            occurredAt: sale.createdAt,
+          });
+        }
+
+        await recordMovement(tx, {
+          productId,
+          type: "VENTA",
+          quantity: item.quantity,
+          referenceType: "SALE",
+          referenceId: sale.id,
+          occurredAt: sale.createdAt,
+        });
+      }
+    }
+  });
 }
 
 /**
@@ -247,13 +331,14 @@ export async function resetDemoData(
 
   await db.sale.deleteMany({ where: DEMO_SALE_WHERE });
 
-  const salesCreated = await insertSales(
+  const sales = await insertSales(
     db,
     planDemoSales(firstHistoryDay(now), now),
     ids,
   );
+  await rebuildDemoKardex(db, sales, ids, now);
 
-  return { action: "reset", salesCreated };
+  return { action: "reset", salesCreated: sales.length };
 }
 
 /**
@@ -281,11 +366,13 @@ export async function syncDemoData(
     return resetDemoData(db, now);
   }
 
-  const salesCreated = await insertSales(
+  const ids = await readCatalogIds(db);
+  const sales = await insertSales(
     db,
     planDemoSales(startOfLimaDay(newest), now, newest),
-    await readCatalogIds(db),
+    ids,
   );
+  await recordDemoSaleExits(db, sales, ids);
 
-  return { action: "append", salesCreated };
+  return { action: "append", salesCreated: sales.length };
 }

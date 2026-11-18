@@ -1,6 +1,7 @@
 import type { IconType } from "react-icons";
 import {
   FiHome,
+  FiLayers,
   FiPackage,
   FiShoppingCart,
   FiTag,
@@ -17,6 +18,7 @@ export const NAV_ITEMS: NavItem[] = [
   { name: "Dashboard", href: "/admin/dashboard", icon: FiHome },
   { name: "Ventas", href: "/admin/ventas", icon: FiShoppingCart },
   { name: "Productos", href: "/admin/productos", icon: FiPackage },
+  { name: "Kárdex", href: "/admin/kardex", icon: FiLayers },
   { name: "Categorías", href: "/admin/categorias", icon: FiTag },
   { name: "Clientes", href: "/admin/clientes", icon: FiUsers },
 ];
