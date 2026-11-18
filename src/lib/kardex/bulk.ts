@@ -5,7 +5,7 @@
  * las mismas reglas que `recordMovement`.
  */
 
-import type { Prisma, PrismaClient } from "@/src/generated/prisma/client";
+import { Prisma, type PrismaClient } from "@/src/generated/prisma/client";
 
 import { rebuildMovements, toDecimal, type DecimalLike } from "./calc";
 import {
@@ -86,17 +86,58 @@ export function buildKardexRows(productId: string, movements: BulkMovement[]) {
   };
 }
 
-/** Consultas que reemplazan el kárdex de un producto, para una transacción. */
-export function replaceProductKardex(
-  db: PrismaClient,
-  productId: string,
-  movements: BulkMovement[],
-) {
-  const { rows, product } = buildKardexRows(productId, movements);
+/**
+ * Tiempo máximo de una carga en bloque. El límite por defecto de Prisma
+ * (5 s) no alcanza contra una base remota como Neon.
+ */
+export const BULK_TRANSACTION_TIMEOUT_MS = 60_000;
 
-  return [
-    db.stockMovement.deleteMany({ where: { productId } }),
-    db.stockMovement.createMany({ data: rows }),
-    db.product.update({ where: { id: productId }, data: product }),
-  ];
+/**
+ * Reemplaza el kárdex de varios productos en una sola transacción y con
+ * pocas consultas, sin importar cuántos productos sean: un borrado, una
+ * inserción con todas las filas y una actualización de los saldos.
+ */
+export async function replaceKardexBulk(
+  db: PrismaClient,
+  items: { productId: string; movements: BulkMovement[] }[],
+): Promise<void> {
+  if (items.length === 0) return;
+
+  const built = items.map(({ productId, movements }) => ({
+    productId,
+    ...buildKardexRows(productId, movements),
+  }));
+  const rows = built.flatMap((item) => item.rows);
+
+  await db.$transaction(
+    async (tx) => {
+      await tx.stockMovement.deleteMany({
+        where: { productId: { in: built.map((item) => item.productId) } },
+      });
+
+      if (rows.length > 0) {
+        await tx.stockMovement.createMany({ data: rows });
+      }
+
+      // Un solo UPDATE ... FROM (VALUES ...) para el saldo de todos los productos.
+      const values = Prisma.join(
+        built.map(
+          ({ productId, product }) =>
+            Prisma.sql`(${productId}::uuid, ${product.stock}::int, ${product.averageCost.toString()}::numeric, ${product.inventoryValue.toString()}::numeric, ${product.lastCost.toString()}::numeric)`,
+        ),
+      );
+
+      await tx.$executeRaw`
+        UPDATE "products" AS p
+        SET "stock" = v.stock,
+            "average_cost" = v.average_cost,
+            "inventory_value" = v.inventory_value,
+            "last_cost" = v.last_cost,
+            "updated_at" = NOW()
+        FROM (VALUES ${values}) AS v(id, stock, average_cost, inventory_value, last_cost)
+        WHERE p."id" = v.id
+      `;
+    },
+    { timeout: BULK_TRANSACTION_TIMEOUT_MS, maxWait: 10_000 },
+  );
 }
