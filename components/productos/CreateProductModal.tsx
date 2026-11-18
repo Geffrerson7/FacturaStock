@@ -31,7 +31,8 @@ export default function CreateProductModal({
 
       <Modal.Backdrop>
         <Modal.Container size="lg" scroll="inside">
-          <Modal.Dialog>
+          {/* Más ancho que los demás modales: el formulario va en dos columnas. */}
+          <Modal.Dialog className="md:max-w-3xl">
             <Modal.Header>
               <Modal.Heading>Registrar producto</Modal.Heading>
               <Modal.CloseTrigger />

@@ -356,7 +356,8 @@ export default function ProductForm({
   return (
     <Form
       key={formKey}
-      className="flex w-full max-w-xl flex-col gap-4"
+      // Dos columnas desde md: el formulario cabe en el modal sin desplazarse.
+      className="grid w-full grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2"
       validationErrors={errors}
       validationBehavior="aria"
       onSubmit={handleSubmit}
@@ -373,68 +374,70 @@ export default function ProductForm({
         <FieldError />
       </TextField>
 
-      <TextField name="description" defaultValue={product?.description ?? ""}>
+      <TextField
+        name="description"
+        defaultValue={product?.description ?? ""}
+        className="md:col-span-2"
+      >
         <Label>Descripción (opcional)</Label>
         <Input placeholder="Botella de agua sin gas" maxLength={255} />
         <FieldError />
       </TextField>
 
-      <div className="flex flex-col gap-4 sm:flex-row">
+      <NumberField
+        name="price"
+        defaultValue={product ? Number(product.price) : undefined}
+        minValue={0}
+        step={0.01}
+        isRequired
+        className="flex-1"
+      >
+        <Label>Precio (IGV incluido)</Label>
+        <NumberField.Group>
+          <NumberField.DecrementButton />
+          <NumberField.Input />
+          <NumberField.IncrementButton />
+        </NumberField.Group>
+        {errors.price ? (
+          <p className="text-sm text-danger">{errors.price}</p>
+        ) : null}
+      </NumberField>
+
+      {product ? (
+        <div className="flex flex-1 flex-col gap-1">
+          <span className="text-sm font-medium text-foreground">Stock</span>
+          <p className="tabular flex h-10 items-center rounded-xl border border-border bg-surface-secondary px-3 text-sm">
+            {formatQuantity(product.stock)}{" "}
+            {product.stock === 1 ? "unidad" : "unidades"}
+          </p>
+          <Link
+            href={`/admin/kardex/nuevo?productId=${product.id}`}
+            className="inline-flex items-center gap-1 text-xs font-medium text-link hover:underline"
+          >
+            <FiLayers aria-hidden />
+            Registrar un movimiento para cambiarlo
+          </Link>
+        </div>
+      ) : (
         <NumberField
-          name="price"
-          defaultValue={product ? Number(product.price) : undefined}
+          name="stock"
+          defaultValue={0}
           minValue={0}
-          step={0.01}
+          step={1}
           isRequired
           className="flex-1"
         >
-          <Label>Precio (IGV incluido)</Label>
+          <Label>Stock inicial</Label>
           <NumberField.Group>
             <NumberField.DecrementButton />
             <NumberField.Input />
             <NumberField.IncrementButton />
           </NumberField.Group>
-          {errors.price ? (
-            <p className="text-sm text-danger">{errors.price}</p>
+          {errors.stock ? (
+            <p className="text-sm text-danger">{errors.stock}</p>
           ) : null}
         </NumberField>
-
-        {product ? (
-          <div className="flex flex-1 flex-col gap-1">
-            <span className="text-sm font-medium text-foreground">Stock</span>
-            <p className="tabular flex h-10 items-center rounded-xl border border-border bg-surface-secondary px-3 text-sm">
-              {formatQuantity(product.stock)}{" "}
-              {product.stock === 1 ? "unidad" : "unidades"}
-            </p>
-            <Link
-              href={`/admin/kardex/nuevo?productId=${product.id}`}
-              className="inline-flex items-center gap-1 text-xs font-medium text-link hover:underline"
-            >
-              <FiLayers aria-hidden />
-              Registrar un movimiento para cambiarlo
-            </Link>
-          </div>
-        ) : (
-          <NumberField
-            name="stock"
-            defaultValue={0}
-            minValue={0}
-            step={1}
-            isRequired
-            className="flex-1"
-          >
-            <Label>Stock inicial</Label>
-            <NumberField.Group>
-              <NumberField.DecrementButton />
-              <NumberField.Input />
-              <NumberField.IncrementButton />
-            </NumberField.Group>
-            {errors.stock ? (
-              <p className="text-sm text-danger">{errors.stock}</p>
-            ) : null}
-          </NumberField>
-        )}
-      </div>
+      )}
 
       {product ? null : (
         <NumberField
@@ -443,16 +446,14 @@ export default function ProductForm({
           step={0.01}
           formatOptions={{ minimumFractionDigits: 0, maximumFractionDigits: 6 }}
         >
-          <Label>Costo unitario del stock inicial (opcional)</Label>
+          <Label>Costo unitario inicial (opcional)</Label>
           <NumberField.Group>
             <NumberField.DecrementButton />
             <NumberField.Input placeholder="0.00" />
             <NumberField.IncrementButton />
           </NumberField.Group>
           <Description>
-            Costo de compra por unidad, sin IGV. Si lo dejas vacío, el stock
-            inicial entra a costo 0 y puedes corregirlo después desde el
-            kárdex.
+            Sin IGV. Vacío entra a costo 0; se corrige desde el kárdex.
           </Description>
           {errors.initialCost ? (
             <p className="text-sm text-danger">{errors.initialCost}</p>
@@ -473,10 +474,7 @@ export default function ProductForm({
           <NumberField.Input />
           <NumberField.IncrementButton />
         </NumberField.Group>
-        <Description>
-          El producto se marca con stock bajo cuando quedan estas unidades o
-          menos.
-        </Description>
+        <Description>Se avisa con estas unidades o menos.</Description>
         {errors.lowStockThreshold ? (
           <p className="text-sm text-danger">{errors.lowStockThreshold}</p>
         ) : null}
@@ -514,7 +512,20 @@ export default function ProductForm({
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-2">
+      <Switch
+        isSelected={isActive}
+        onChange={setIsActive}
+        className="md:self-end md:pb-2"
+      >
+        <Switch.Content>
+          <Switch.Control>
+            <Switch.Thumb />
+          </Switch.Control>
+          Producto activo
+        </Switch.Content>
+      </Switch>
+
+      <div className="flex flex-col gap-2 md:col-span-2">
         <span className="text-sm font-medium">Imagen del producto</span>
 
         <div
@@ -528,79 +539,81 @@ export default function ProductForm({
               : "border-border bg-transparent"
           }`}
         >
-          <div className="flex items-center gap-4">
-            <Avatar size="lg" color="accent">
-              {image ? (
-                <Avatar.Image
-                  src={image.url}
-                  alt={product?.name ?? "Producto"}
-                />
-              ) : null}
-              <Avatar.Fallback>
-                <FiImage aria-hidden />
-              </Avatar.Fallback>
-            </Avatar>
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:gap-4">
+            <div className="flex items-center gap-4">
+              <Avatar size="lg" color="accent">
+                {image ? (
+                  <Avatar.Image
+                    src={image.url}
+                    alt={product?.name ?? "Producto"}
+                  />
+                ) : null}
+                <Avatar.Fallback>
+                  <FiImage aria-hidden />
+                </Avatar.Fallback>
+              </Avatar>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                ref={imageInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="sr-only"
-                onChange={handleImageChange}
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="sr-only"
+                  onChange={handleImageChange}
+                />
+
+                <Button
+                  type="button"
+                  variant="secondary"
+                  isDisabled={isUploading}
+                  onClick={openImagePicker}
+                >
+                  <FiUploadCloud aria-hidden />
+                  {isUploading
+                    ? "Subiendo…"
+                    : image
+                      ? "Cambiar imagen"
+                      : "Subir imagen"}
+                </Button>
+
+                {image ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    isDisabled={isUploading}
+                    onClick={() => setImage(null)}
+                  >
+                    <FiTrash2 aria-hidden />
+                    Quitar imagen
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-end">
+              <TextField
+                className="flex-1"
+                value={imageUrlInput}
+                onChange={setImageUrlInput}
+              >
+                <Label>O pega una URL de imagen</Label>
+                <Input
+                  type="url"
+                  placeholder="https://ejemplo.com/producto.jpg"
+                  maxLength={500}
+                />
+              </TextField>
 
               <Button
                 type="button"
                 variant="secondary"
-                isDisabled={isUploading}
-                onClick={openImagePicker}
+                isDisabled={isUploading || imageUrlInput.trim() === ""}
+                onClick={handleImageUrlSubmit}
               >
-                <FiUploadCloud aria-hidden />
-                {isUploading
-                  ? "Subiendo…"
-                  : image
-                    ? "Cambiar imagen"
-                    : "Subir imagen"}
+                Usar URL
               </Button>
-
-              {image ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  isDisabled={isUploading}
-                  onClick={() => setImage(null)}
-                >
-                  <FiTrash2 aria-hidden />
-                  Quitar imagen
-                </Button>
-              ) : null}
             </div>
-          </div>
-
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-            <TextField
-              className="flex-1"
-              value={imageUrlInput}
-              onChange={setImageUrlInput}
-            >
-              <Label>O pega una URL de imagen</Label>
-              <Input
-                type="url"
-                placeholder="https://ejemplo.com/producto.jpg"
-                maxLength={500}
-              />
-            </TextField>
-
-            <Button
-              type="button"
-              variant="secondary"
-              isDisabled={isUploading || imageUrlInput.trim() === ""}
-              onClick={handleImageUrlSubmit}
-            >
-              Usar URL
-            </Button>
-          </div>
+            </div>
 
           <p className="text-xs text-muted">
             Arrastra una imagen aquí, elige un archivo o pega una URL. JPG, PNG
@@ -610,16 +623,13 @@ export default function ProductForm({
         </div>
       </div>
 
-      <Switch isSelected={isActive} onChange={setIsActive}>
-        <Switch.Content>
-          <Switch.Control>
-            <Switch.Thumb />
-          </Switch.Control>
-          Producto activo
-        </Switch.Content>
-      </Switch>
 
-      <Button type="submit" fullWidth isPending={isSubmitting}>
+      <Button
+        type="submit"
+        fullWidth
+        className="md:col-span-2"
+        isPending={isSubmitting}
+      >
         {isSubmitting
           ? product
             ? "Guardando..."
