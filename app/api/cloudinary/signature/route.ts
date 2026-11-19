@@ -29,7 +29,7 @@ function getApiSecret(): string {
  */
 export async function POST(request: Request) {
   try {
-    await requireSession(request);
+    await requireSession(request, { adminOnly: true });
 
     return Response.json(signProductImageUpload(getApiSecret()));
   } catch (error) {

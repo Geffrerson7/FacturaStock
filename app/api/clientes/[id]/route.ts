@@ -97,7 +97,7 @@ export async function DELETE(
   ctx: RouteContext<"/api/clientes/[id]">,
 ) {
   try {
-    await requireSession(request);
+    await requireSession(request, { adminOnly: true });
 
     const { id } = await ctx.params;
     const customerId = parseCustomerId(id);

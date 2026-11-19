@@ -61,7 +61,7 @@ export async function PUT(
   ctx: RouteContext<"/api/productos/[id]">,
 ) {
   try {
-    await requireSession(request);
+    await requireSession(request, { adminOnly: true });
 
     const { id } = await ctx.params;
     const productId = parseProductId(id);
@@ -111,7 +111,7 @@ export async function DELETE(
   ctx: RouteContext<"/api/productos/[id]">,
 ) {
   try {
-    await requireSession(request);
+    await requireSession(request, { adminOnly: true });
 
     const { id } = await ctx.params;
     const productId = parseProductId(id);

@@ -18,7 +18,7 @@ export async function POST(
   ctx: RouteContext<"/api/ventas/[id]/anular">,
 ) {
   try {
-    const user = await requireSession(request);
+    const user = await requireSession(request, { adminOnly: true });
 
     const { id } = await ctx.params;
     const saleId = parseSaleId(id);

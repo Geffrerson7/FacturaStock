@@ -3,9 +3,16 @@
  * probarlas y reutilizarlas en el servidor y en el cliente.
  */
 
-export const USER_ROLES = ["ADMIN", "DEMO"] as const;
+export const USER_ROLES = ["ADMIN", "CASHIER", "DEMO"] as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
+
+/**
+ * Rol de las cuentas creadas desde `/register` (solo con AUTH_ALLOW_SIGNUP).
+ * El cajero opera el día a día (ventas, comprobantes y clientes) pero no
+ * administra el catálogo, el kardex ni anula ventas.
+ */
+export const SIGNUP_ROLE: UserRole = "CASHIER";
 
 export type SessionUser = {
   id: string;
@@ -17,6 +24,9 @@ export type SessionUser = {
 export const DEMO_READ_ONLY_MESSAGE =
   "El usuario de demostración solo tiene permisos de lectura.";
 
+export const ADMIN_ONLY_MESSAGE =
+  "Solo un administrador puede realizar esta acción.";
+
 const READ_METHODS = new Set(["GET", "HEAD"]);
 
 /** Los métodos que no modifican datos ni gastan servicios de terceros. */
@@ -27,6 +37,11 @@ export function isReadMethod(method: string): boolean {
 /** El usuario de demostración solo puede hacer peticiones de lectura. */
 export function canUseMethod(role: UserRole, method: string): boolean {
   return role !== "DEMO" || isReadMethod(method);
+}
+
+/** Las acciones que solo puede hacer un administrador. */
+export function canAdminister(role: UserRole): boolean {
+  return role === "ADMIN";
 }
 
 export function isSignUpEnabled(): boolean {

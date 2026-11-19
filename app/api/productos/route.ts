@@ -59,7 +59,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const user = await requireSession(request);
+    const user = await requireSession(request, { adminOnly: true });
 
     const data = await parseJsonBody(request, createProductSchema);
 

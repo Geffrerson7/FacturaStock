@@ -1,5 +1,7 @@
 import { auth } from "@/src/lib/auth";
 import {
+  ADMIN_ONLY_MESSAGE,
+  canAdminister,
   canUseMethod,
   DEMO_READ_ONLY_MESSAGE,
   type SessionUser,
@@ -15,6 +17,11 @@ type RequireSessionOptions = {
    * GET. Sirve para los endpoints de lectura que gastan servicios de pago.
    */
   allowDemo?: boolean;
+  /**
+   * Con `true`, solo un ADMIN pasa: el cajero recibe 403 `ADMIN_ONLY`. Para
+   * las acciones sobre el catálogo, el kardex y las anulaciones.
+   */
+  adminOnly?: boolean;
 };
 
 function toRole(value: unknown): UserRole {
@@ -44,10 +51,11 @@ export async function getSessionUser(
  *
  * - Sin sesión: 401 `UNAUTHENTICATED`.
  * - Usuario de demostración en una petición que no es GET: 403 `DEMO_READ_ONLY`.
+ * - Con `adminOnly`, cualquier usuario que no sea ADMIN: 403 `ADMIN_ONLY`.
  */
 export async function requireSession(
   request: Request,
-  { allowDemo = true }: RequireSessionOptions = {},
+  { allowDemo = true, adminOnly = false }: RequireSessionOptions = {},
 ): Promise<SessionUser> {
   const user = await getSessionUser(request.headers);
 
@@ -64,6 +72,10 @@ export async function requireSession(
     (user.role === "DEMO" && !allowDemo)
   ) {
     throw new ApiError(403, "DEMO_READ_ONLY", DEMO_READ_ONLY_MESSAGE);
+  }
+
+  if (adminOnly && !canAdminister(user.role)) {
+    throw new ApiError(403, "ADMIN_ONLY", ADMIN_ONLY_MESSAGE);
   }
 
   return user;

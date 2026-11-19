@@ -71,7 +71,7 @@ Aplicación de inventario y punto de venta construida con **Next.js 16** y **Pos
 
 - **Autenticación**
   - Inicio y cierre de sesión con correo y contraseña (Better Auth, sesiones en la base).
-  - Roles `ADMIN` y `DEMO`: el usuario de demostración solo puede leer (peticiones `GET`).
+  - Roles `ADMIN`, `CASHIER` y `DEMO`: el cajero (cuentas registradas) vende y gestiona clientes; el usuario de demostración solo puede leer (peticiones `GET`).
   - Panel `/admin` y API protegidos; el registro está cerrado por defecto.
 
 - **Interfaz**
@@ -506,16 +506,22 @@ contraseña y sesiones guardadas en PostgreSQL.
   `/admin/*` y `/api/*`. La validación real ocurre después: el layout de
   `/admin` llama a `getCurrentUser()` y cada Route Handler empieza con
   `requireSession(request)`.
-- **Roles.** `ADMIN` tiene acceso completo. `DEMO` solo puede hacer peticiones
-  `GET`: cualquier otro método responde `403 DEMO_READ_ONLY`. Tampoco puede
-  usar las consultas de DNI y RUC, porque gastan cuota de Decolecta.
+- **Roles.** `ADMIN` tiene acceso completo. `CASHIER` es el rol de las cuentas
+  registradas: puede ver todo, registrar ventas, emitir comprobantes, crear y
+  editar clientes y consultar DNI y RUC. Crear, editar o eliminar productos y
+  categorías, eliminar clientes, subir imágenes, registrar movimientos de
+  kárdex y anular ventas responde `403 ADMIN_ONLY` (`requireSession(request,
+  { adminOnly: true })`). `DEMO` solo puede hacer peticiones `GET`: cualquier
+  otro método responde `403 DEMO_READ_ONLY`. Tampoco puede usar las consultas
+  de DNI y RUC, porque gastan cuota de Decolecta.
 - **Cuenta de demostración.** El botón "Entrar como demo" llama a
   `POST /api/auth/demo`, que inicia la sesión en el servidor con
   `DEMO_USER_EMAIL` y `DEMO_USER_PASSWORD`. Las credenciales no aparecen en la
   página ni en el código del navegador. Sin esas variables, el botón no se
   muestra.
 - **Registro.** Cerrado por defecto. Con `AUTH_ALLOW_SIGNUP=true` cada cuenta
-  nueva es `ADMIN`, así que no lo abras en una demo pública.
+  nueva es `CASHIER` y recibe un correo de bienvenida (Resend). Para dar
+  permisos de administrador, cambia el rol en la tabla `users`.
 - **Endpoints de Better Auth.** Solo se exponen inicio de sesión, registro,
   cierre y lectura de sesión. El resto (cambio de contraseña, de correo...)
   responde `404`, para que nadie cambie la contraseña de la cuenta de
