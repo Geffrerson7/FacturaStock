@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 
 import { isSignUpEnabled, USER_ROLES } from "./auth-policy";
+import { sendWelcomeEmail } from "./email";
 import { prisma } from "./prisma";
 
 /**
@@ -18,6 +19,17 @@ export const auth = betterAuth({
     disableSignUp: !isSignUpEnabled(),
     minPasswordLength: 8,
     maxPasswordLength: 72,
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        // Solo el registro pasa por Better Auth: el seed y el usuario demo se
+        // crean con Prisma directamente, así que no reciben este correo.
+        after: async (user) => {
+          await sendWelcomeEmail(user);
+        },
+      },
+    },
   },
   user: {
     additionalFields: {
