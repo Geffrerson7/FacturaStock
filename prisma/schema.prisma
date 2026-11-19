@@ -269,6 +269,9 @@ model StockMovement {
 
 enum UserRole {
   ADMIN
+  // Cuentas creadas desde /register: ventas, comprobantes y clientes, sin
+  // administrar el catálogo, el kardex ni anular ventas.
+  CASHIER
   // Usuario de demostración: solo lectura (peticiones GET).
   DEMO
 }
@@ -279,7 +282,7 @@ model User {
   email         String   @unique @db.VarChar(120)
   emailVerified Boolean  @default(false) @map("email_verified")
   image         String?  @db.Text
-  role          UserRole @default(ADMIN)
+  role          UserRole @default(CASHIER)
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 

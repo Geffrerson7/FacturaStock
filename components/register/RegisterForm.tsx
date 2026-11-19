@@ -78,7 +78,10 @@ export default function RegisterForm() {
     });
 
     if (error) {
-      if (error.status === 422 || error.code?.startsWith("USER_ALREADY_EXISTS")) {
+      // Better Auth responde 422 tanto al correo duplicado como a un fallo
+      // al guardar el usuario (FAILED_TO_CREATE_USER): solo el código los
+      // distingue.
+      if (error.code?.startsWith("USER_ALREADY_EXISTS")) {
         setErrors({ email: "Ya existe una cuenta con ese correo." });
       } else {
         toast.danger("No se pudo crear la cuenta", {

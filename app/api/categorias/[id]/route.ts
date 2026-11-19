@@ -45,7 +45,7 @@ export async function PUT(
   ctx: RouteContext<"/api/categorias/[id]">,
 ) {
   try {
-    await requireSession(request);
+    await requireSession(request, { adminOnly: true });
 
     const { id } = await ctx.params;
     const categoryId = parseCategoryId(id);
@@ -79,7 +79,7 @@ export async function DELETE(
   ctx: RouteContext<"/api/categorias/[id]">,
 ) {
   try {
-    await requireSession(request);
+    await requireSession(request, { adminOnly: true });
 
     const { id } = await ctx.params;
     const categoryId = parseCategoryId(id);

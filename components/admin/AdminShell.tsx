@@ -118,6 +118,11 @@ export default function AdminShell({ user, children }: AdminShellProps) {
                 <Chip.Label>Demostración</Chip.Label>
               </Chip>
             ) : null}
+            {user.role === "CASHIER" ? (
+              <Chip size="sm" variant="soft" className="mr-1 hidden sm:inline-flex">
+                <Chip.Label>Cajero</Chip.Label>
+              </Chip>
+            ) : null}
             <ThemeToggle />
             <UserMenu user={user} />
           </div>

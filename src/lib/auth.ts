@@ -1,7 +1,8 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 
-import { isSignUpEnabled, USER_ROLES } from "./auth-policy";
+import { isSignUpEnabled, SIGNUP_ROLE, USER_ROLES } from "./auth-policy";
+import { sendWelcomeEmail } from "./email";
 import { prisma } from "./prisma";
 
 /**
@@ -19,12 +20,27 @@ export const auth = betterAuth({
     minPasswordLength: 8,
     maxPasswordLength: 72,
   },
+  databaseHooks: {
+    user: {
+      create: {
+        // Las cuentas creadas desde el registro nunca son ADMIN. `input: false`
+        // ya impide que el cliente mande el rol; esto lo fija aunque el
+        // valor por defecto cambie.
+        before: async (user) => ({ data: { ...user, role: SIGNUP_ROLE } }),
+        // Solo el registro pasa por Better Auth: el seed y el usuario demo se
+        // crean con Prisma directamente, así que no reciben este correo.
+        after: async (user) => {
+          await sendWelcomeEmail(user);
+        },
+      },
+    },
+  },
   user: {
     additionalFields: {
       role: {
         type: [...USER_ROLES],
         required: false,
-        defaultValue: "ADMIN",
+        defaultValue: SIGNUP_ROLE,
         // El rol nunca se acepta desde el cliente.
         input: false,
       },

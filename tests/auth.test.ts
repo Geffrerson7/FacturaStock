@@ -34,6 +34,8 @@ import * as customersRoute from "@/app/api/clientes/route";
 import * as signatureRoute from "@/app/api/cloudinary/signature/route";
 import * as dniRoute from "@/app/api/consulta/dni/route";
 import * as rucRoute from "@/app/api/consulta/ruc/route";
+import * as kardexRoute from "@/app/api/kardex/route";
+import * as initialCostRoute from "@/app/api/productos/[id]/costo-inicial/route";
 import * as productRoute from "@/app/api/productos/[id]/route";
 import * as productsRoute from "@/app/api/productos/route";
 import * as cancellationRoute from "@/app/api/ventas/[id]/anulacion/route";
@@ -105,7 +107,7 @@ function call({ method, path, handler }: Endpoint) {
   return handler(request, { params: Promise.resolve({ id: ID }) } as never);
 }
 
-function sessionFor(role: "ADMIN" | "DEMO") {
+function sessionFor(role: "ADMIN" | "CASHIER" | "DEMO") {
   return {
     session: { id: "session-1" },
     user: { id: `user-${role}`, name: role, email: `${role}@test.dev`, role },
@@ -166,6 +168,62 @@ describe("usuario de demostración", () => {
     const response = await call(endpoint("GET", "/api/productos", productsRoute));
 
     expect(response.status).toBe(500);
+  });
+});
+
+// Lo que el cajero (rol de las cuentas registradas) no puede hacer.
+const ADMIN_ONLY_ENDPOINTS: Endpoint[] = [
+  endpoint("POST", "/api/categorias", categoriesRoute),
+  endpoint("PUT", `/api/categorias/${ID}`, categoryRoute),
+  endpoint("DELETE", `/api/categorias/${ID}`, categoryRoute),
+  endpoint("DELETE", `/api/clientes/${ID}`, customerRoute),
+  endpoint("POST", "/api/productos", productsRoute),
+  endpoint("PUT", `/api/productos/${ID}`, productRoute),
+  endpoint("DELETE", `/api/productos/${ID}`, productRoute),
+  endpoint("PUT", `/api/productos/${ID}/costo-inicial`, initialCostRoute),
+  endpoint("POST", "/api/kardex", kardexRoute),
+  endpoint("POST", `/api/ventas/${ID}/anular`, cancelSaleRoute),
+  endpoint("POST", "/api/cloudinary/signature", signatureRoute),
+];
+
+describe("cajero", () => {
+  it.each(ADMIN_ONLY_ENDPOINTS)("$method $path responde 403", async (target) => {
+    getSession.mockResolvedValue(sessionFor("CASHIER"));
+
+    const response = await call(target);
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.error.code).toBe("ADMIN_ONLY");
+  });
+
+  it.each([
+    endpoint("POST", "/api/ventas", salesRoute),
+    endpoint("POST", "/api/clientes", customersRoute),
+    endpoint("PUT", `/api/clientes/${ID}`, customerRoute),
+    endpoint("POST", `/api/ventas/${ID}/comprobante`, invoiceRoute),
+  ])("$method $path pasa la comprobación de rol", async (target) => {
+    getSession.mockResolvedValue(sessionFor("CASHIER"));
+
+    // Llega hasta la validación o la base (simulada para fallar), en lugar
+    // de devolver 401 o 403.
+    const response = await call(target);
+
+    expect([400, 422, 500]).toContain(response.status);
+  });
+
+  it("puede consultar DNI", async () => {
+    getSession.mockResolvedValue({
+      ...sessionFor("CASHIER"),
+      user: { ...sessionFor("CASHIER").user, id: "cashier-dni" },
+    });
+    lookupDni.mockResolvedValue({ documentType: "DNI" });
+
+    const response = await call(
+      endpoint("GET", "/api/consulta/dni?numero=46027897", dniRoute),
+    );
+
+    expect(response.status).toBe(200);
   });
 });
 

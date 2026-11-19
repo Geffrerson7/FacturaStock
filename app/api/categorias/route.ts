@@ -54,7 +54,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await requireSession(request);
+    await requireSession(request, { adminOnly: true });
 
     const data = await parseJsonBody(request, createCategorySchema);
     const category = await prisma.category.create({
