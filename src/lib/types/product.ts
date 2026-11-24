@@ -7,6 +7,8 @@ export type Product = {
   sku: string;
   description: string | null;
   price: string;
+  /** Precio mínimo de venta con IGV. Sin valor, el mínimo es `price`. */
+  minPrice: string | null;
   stock: number;
   /** Con `stock <= lowStockThreshold` el producto tiene stock bajo. */
   lowStockThreshold: number;

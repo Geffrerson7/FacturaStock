@@ -8,6 +8,7 @@ import { saleIdSchema, type ListSalesQuery } from "@/src/lib/validations/sale";
 
 export const SALE_INCLUDE = {
   customer: true,
+  seller: { select: { id: true, name: true } },
   items: { orderBy: { createdAt: "asc" as const } },
   invoice: true,
 } satisfies Prisma.SaleInclude;

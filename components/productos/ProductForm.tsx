@@ -263,6 +263,7 @@ export default function ProductForm({
       sku: String(formData.get("sku") ?? ""),
       description: String(formData.get("description") ?? ""),
       price: formData.get("price"),
+      minPrice: formData.get("minPrice"),
       // Al editar, el stock no se envía: solo cambia con el kárdex.
       ...(product
         ? {}
@@ -400,6 +401,30 @@ export default function ProductForm({
         </NumberField.Group>
         {errors.price ? (
           <p className="text-sm text-danger">{errors.price}</p>
+        ) : null}
+      </NumberField>
+
+      <NumberField
+        name="minPrice"
+        defaultValue={
+          product?.minPrice == null ? undefined : Number(product.minPrice)
+        }
+        minValue={0}
+        step={0.01}
+        className="flex-1"
+      >
+        <Label>Precio mínimo (opcional)</Label>
+        <NumberField.Group>
+          <NumberField.DecrementButton />
+          <NumberField.Input placeholder="Igual al precio" />
+          <NumberField.IncrementButton />
+        </NumberField.Group>
+        <Description>
+          IGV incluido. Nadie puede vender por debajo. Vacío: no se puede
+          bajar del precio.
+        </Description>
+        {errors.minPrice ? (
+          <p className="text-sm text-danger">{errors.minPrice}</p>
         ) : null}
       </NumberField>
 

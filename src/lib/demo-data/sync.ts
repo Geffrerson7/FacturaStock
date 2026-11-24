@@ -231,6 +231,7 @@ async function insertSales(
         productId: line.productId,
         productName: line.product.name,
         unitPrice: line.product.price,
+        listPrice: line.product.price,
         quantity: line.quantity,
         subtotal: (
           (Math.round(Number(line.product.price) * 100) * line.quantity) /

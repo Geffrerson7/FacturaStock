@@ -22,6 +22,20 @@ export const createSaleItemSchema = z.object({
     .int("La cantidad debe ser un número entero.")
     .min(1, "La cantidad debe ser al menos 1.")
     .max(1000000, "La cantidad es demasiado alta."),
+  // Precio unitario con IGV que se cobra. Sin él se usa el precio de lista.
+  // El servidor comprueba que no baje del precio mínimo del producto.
+  unitPrice: z.preprocess(
+    (value) => (value === "" || value === null ? undefined : value),
+    z.coerce
+      .number("El precio debe ser un número válido.")
+      .positive("El precio debe ser mayor que 0.")
+      .max(99999999.99, "El precio es demasiado alto.")
+      .refine(
+        (value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-6,
+        "El precio admite como máximo 2 decimales.",
+      )
+      .optional(),
+  ),
 });
 
 export const createSaleSchema = z.object({

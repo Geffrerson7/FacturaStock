@@ -39,6 +39,8 @@ export type SaleItem = {
   productId: string | null;
   productName: string;
   unitPrice: string;
+  /** Precio de lista al vender. Nulo en ventas anteriores a este campo. */
+  listPrice: string | null;
   quantity: number;
   subtotal: string;
 };
@@ -48,6 +50,8 @@ export type Sale = {
   number: number;
   customerId: string | null;
   customer: Customer | null;
+  sellerId: string | null;
+  seller: { id: string; name: string } | null;
   /** Base imponible (sin IGV). */
   taxableAmount: string;
   igvAmount: string;

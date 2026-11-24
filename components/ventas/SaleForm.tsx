@@ -11,7 +11,7 @@ import StockLevelChip from "@/components/productos/StockLevelChip";
 import SearchPicker from "@/components/ventas/SearchPicker";
 import { getCustomerDocumentLabel, getCustomerName } from "@/src/lib/customer";
 import { formatCents, formatCurrency, formatInvoiceCode } from "@/src/lib/format";
-import { computeLineTax, computeSaleTax } from "@/src/lib/tax";
+import { computeLineTax, computeSaleTax, toCents } from "@/src/lib/tax";
 import type { Customer } from "@/src/lib/types/customer";
 import type { Product } from "@/src/lib/types/product";
 import type { Sale } from "@/src/lib/types/sale";
@@ -19,6 +19,8 @@ import type { Sale } from "@/src/lib/types/sale";
 type SaleLine = {
   product: Product;
   quantity: number;
+  /** Precio unitario con IGV que se cobra. Empieza en el de lista. */
+  unitPrice: number;
 };
 
 type FormSubmitEvent = Parameters<
@@ -36,7 +38,16 @@ const PRODUCT_SEARCH = "/api/productos?isActive=true&sort=name&order=asc";
 const CUSTOMER_SEARCH = "/api/clientes?sort=name&order=asc";
 
 function toTaxLine(line: SaleLine) {
-  return { quantity: line.quantity, unitPrice: Number(line.product.price) };
+  return { quantity: line.quantity, unitPrice: line.unitPrice };
+}
+
+/** Precio mínimo con IGV: el del producto o, sin él, el de lista. */
+function minPriceOf(product: Product): number {
+  return Number(product.minPrice ?? product.price);
+}
+
+function isBelowMinimum(line: SaleLine): boolean {
+  return toCents(line.unitPrice) < toCents(minPriceOf(line.product));
 }
 
 /**
@@ -57,12 +68,18 @@ export default function SaleForm() {
     setLines((current) => {
       const existing = current.find((line) => line.product.id === product.id);
 
-      if (!existing) return [...current, { product, quantity: 1 }];
+      if (!existing) {
+        return [
+          ...current,
+          { product, quantity: 1, unitPrice: Number(product.price) },
+        ];
+      }
 
       // Elegir de nuevo un producto ya agregado suma una unidad.
       return current.map((line) =>
         line.product.id === product.id
           ? {
+              ...line,
               product,
               quantity: Math.min(line.quantity + 1, Math.max(1, product.stock)),
             }
@@ -79,6 +96,14 @@ export default function SaleForm() {
     );
   }
 
+  function updatePrice(productId: string, unitPrice: number) {
+    setLines((current) =>
+      current.map((line) =>
+        line.product.id === productId ? { ...line, unitPrice } : line,
+      ),
+    );
+  }
+
   function removeLine(productId: string) {
     setLines((current) =>
       current.filter((line) => line.product.id !== productId),
@@ -86,6 +111,7 @@ export default function SaleForm() {
   }
 
   const validLines = lines.filter((line) => line.quantity >= 1);
+  const linesBelowMinimum = validLines.filter(isBelowMinimum);
   const totals = computeSaleTax(validLines.map(toTaxLine));
   const units = validLines.reduce((sum, line) => sum + line.quantity, 0);
   const documentLabel =
@@ -96,6 +122,13 @@ export default function SaleForm() {
 
     if (validLines.length === 0) {
       setErrorMessage("Agrega al menos un producto con cantidad válida.");
+      return;
+    }
+
+    if (linesBelowMinimum.length > 0) {
+      setErrorMessage(
+        `El precio de "${linesBelowMinimum[0].product.name}" está por debajo del mínimo permitido.`,
+      );
       return;
     }
 
@@ -111,6 +144,7 @@ export default function SaleForm() {
           items: validLines.map((line) => ({
             productId: line.product.id,
             quantity: line.quantity,
+            unitPrice: line.unitPrice,
           })),
         }),
       });
@@ -251,14 +285,15 @@ export default function SaleForm() {
               {lines.map((line) => (
                 <li
                   key={line.product.id}
-                  className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 py-3 sm:grid-cols-[minmax(0,1fr)_8rem_7rem_auto] sm:items-center"
+                  className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 py-3 sm:grid-cols-[minmax(0,1fr)_9rem_8rem_7rem_auto] sm:items-start"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-foreground">
                       {line.product.name}
                     </p>
                     <p className="tabular text-xs text-muted">
-                      {formatCurrency(line.product.price)} c/u · Stock:{" "}
+                      Lista {formatCurrency(line.product.price)} · Mín.{" "}
+                      {formatCurrency(minPriceOf(line.product))} · Stock:{" "}
                       {line.product.stock}
                     </p>
                     <span className="mt-1 inline-block">
@@ -266,7 +301,38 @@ export default function SaleForm() {
                     </span>
                   </div>
 
-                  <div className="row-start-2 sm:row-start-auto">
+                  <div className="col-span-2 row-start-2 sm:col-span-1 sm:row-start-auto">
+                    <NumberField
+                      value={line.unitPrice}
+                      onChange={(value) =>
+                        updatePrice(
+                          line.product.id,
+                          Number.isFinite(value) ? value : 0,
+                        )
+                      }
+                      minValue={0}
+                      step={0.01}
+                      formatOptions={{
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      }}
+                      isInvalid={isBelowMinimum(line)}
+                      aria-label={`Precio unitario de ${line.product.name}`}
+                      className="w-36"
+                    >
+                      <Label className="sr-only">Precio unitario</Label>
+                      <NumberField.Group>
+                        <NumberField.Input />
+                      </NumberField.Group>
+                    </NumberField>
+                    {isBelowMinimum(line) ? (
+                      <p className="mt-1 text-xs text-danger">
+                        Mínimo {formatCurrency(minPriceOf(line.product))}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="row-start-3 sm:row-start-auto">
                     <NumberField
                       value={line.quantity}
                       onChange={(value) =>
@@ -290,7 +356,7 @@ export default function SaleForm() {
                     </NumberField>
                   </div>
 
-                  <p className="tabular row-start-2 self-center text-end text-sm font-medium text-foreground sm:row-start-auto">
+                  <p className="tabular row-start-3 self-center text-end text-sm font-medium text-foreground sm:row-start-auto sm:pt-2">
                     {formatCents(computeLineTax(toTaxLine(line)).total)}
                   </p>
 
@@ -361,7 +427,7 @@ export default function SaleForm() {
             type="submit"
             fullWidth
             isPending={isSubmitting}
-            isDisabled={validLines.length === 0}
+            isDisabled={validLines.length === 0 || linesBelowMinimum.length > 0}
           >
             <FiShoppingCart aria-hidden />
             {isSubmitting ? "Registrando..." : "Confirmar venta"}

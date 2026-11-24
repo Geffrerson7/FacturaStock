@@ -14,6 +14,7 @@ import {
   buildSaleWhere,
   SALE_INCLUDE,
 } from "@/src/lib/api/sale";
+import { priceSaleLines } from "@/src/lib/api/sale-pricing";
 import { recordMovement } from "@/src/lib/kardex/engine";
 import { prisma } from "@/src/lib/prisma";
 import { buildNubefactItems, resolveInvoiceIdentity } from "@/src/lib/nubefact";
@@ -82,7 +83,14 @@ export async function POST(request: Request) {
     const sale = await prisma.$transaction(async (tx) => {
       const products = await tx.product.findMany({
         where: { id: { in: productIds } },
-        select: { id: true, name: true, price: true, stock: true, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          minPrice: true,
+          stock: true,
+          isActive: true,
+        },
       });
 
       const productById = new Map(products.map((product) => [product.id, product]));
@@ -120,6 +128,8 @@ export async function POST(request: Request) {
         }
       }
 
+      const lines = priceSaleLines(data.items, productById);
+
       // El comprobante se reserva en la misma transacción que la venta.
       const identity = resolveInvoiceIdentity(customer);
       const counter = await tx.invoiceCounter.upsert({
@@ -155,20 +165,22 @@ export async function POST(request: Request) {
         });
       }
 
-      // Una línea por producto, con el precio y el nombre como snapshot.
-      const items = [...quantities].map(([productId, quantity]) => {
-        const product = productById.get(productId)!;
-        const unitPrice = new Prisma.Decimal(product.price);
-        const subtotal = unitPrice.mul(quantity);
+      // Nombre y precio de lista como snapshot, junto al precio cobrado.
+      const items = lines.map(
+        ({ productId, priceCents, quantity }) => {
+          const product = productById.get(productId)!;
+          const unitPrice = new Prisma.Decimal(priceCents).div(100);
 
-        return {
-          productId,
-          productName: product.name,
-          unitPrice,
-          quantity,
-          subtotal,
-        };
-      });
+          return {
+            productId,
+            productName: product.name,
+            unitPrice,
+            listPrice: product.price,
+            quantity,
+            subtotal: unitPrice.mul(quantity),
+          };
+        },
+      );
 
       const total = items.reduce(
         (sum, item) => sum.add(item.subtotal),
@@ -189,6 +201,7 @@ export async function POST(request: Request) {
         data: {
           id: saleId,
           customerId: data.customerId,
+          sellerId: user.id,
           taxableAmount: amounts.totalGravada,
           igvAmount: amounts.totalIgv,
           total,
