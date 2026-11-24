@@ -96,6 +96,7 @@ async function SaleDetail({
           </div>
           <p className="mt-1 text-sm text-muted">
             {formatDate(sale.createdAt)}
+            {sale.seller ? ` · Vendido por ${sale.seller.name}` : null}
           </p>
         </div>
         <SaleActions
@@ -149,6 +150,11 @@ async function SaleDetail({
                   <td className="py-3 text-end">{item.quantity}</td>
                   <td className="hidden py-3 text-end sm:table-cell">
                     {formatCurrency(item.unitPrice.toString())}
+                    {item.listPrice && !item.listPrice.equals(item.unitPrice) ? (
+                      <span className="block text-xs text-muted">
+                        Lista {formatCurrency(item.listPrice.toString())}
+                      </span>
+                    ) : null}
                   </td>
                   <td className="py-3 text-end font-medium text-foreground">
                     {formatCurrency(item.subtotal.toString())}

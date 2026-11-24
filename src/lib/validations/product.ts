@@ -84,7 +84,19 @@ export const unitCostField = z.preprocess(
     ),
 );
 
-export const createProductSchema = z.object({
+/** Precio mínimo opcional (con IGV). Un campo vacío es "sin mínimo propio". */
+const optionalMinPrice = z.preprocess(
+  emptyToNull,
+  z.coerce
+    .number("El precio mínimo debe ser un número válido.")
+    .min(0, "El precio mínimo no puede ser negativo.")
+    .max(99999999.99, "El precio mínimo es demasiado alto.")
+    .nullable()
+    .optional()
+    .transform((value) => value ?? null),
+);
+
+const productFields = z.object({
   name: z
     .string("El nombre del producto es obligatorio.")
     .trim()
@@ -100,6 +112,7 @@ export const createProductSchema = z.object({
     .number("El precio debe ser un número válido.")
     .min(0, "El precio no puede ser negativo.")
     .max(99999999.99, "El precio es demasiado alto."),
+  minPrice: optionalMinPrice,
   // Stock inicial: solo al crear. Después el stock cambia únicamente con
   // movimientos del kárdex.
   stock: z.coerce
@@ -122,11 +135,24 @@ export const createProductSchema = z.object({
   imagePublicId: optionalImagePublicId,
 });
 
+const MIN_PRICE_ABOVE_PRICE = {
+  path: ["minPrice"],
+  message: "El precio mínimo no puede ser mayor que el precio de venta.",
+};
+
+function minPriceWithinPrice(data: { price: number; minPrice: number | null }) {
+  return data.minPrice === null || data.minPrice <= data.price;
+}
+
+export const createProductSchema = productFields.refine(
+  minPriceWithinPrice,
+  MIN_PRICE_ABOVE_PRICE,
+);
+
 // Al editar no se acepta `stock` ni `initialCost`: si llegan, se descartan.
-export const updateProductSchema = createProductSchema.omit({
-  stock: true,
-  initialCost: true,
-});
+export const updateProductSchema = productFields
+  .omit({ stock: true, initialCost: true })
+  .refine(minPriceWithinPrice, MIN_PRICE_ABOVE_PRICE);
 
 export const PRODUCT_SORT_FIELDS = [
   "createdAt",
